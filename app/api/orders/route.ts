@@ -212,73 +212,63 @@ export async function POST(request: Request) {
     }
   }
 
-  const { data: order, error: orderError } = await supabase
-    .from("orders")
-    .insert({
-      customer_name: body.customer.name.trim(),
-      customer_phone: body.customer.phone.trim(),
-      delivery_type: "delivery",
-      delivery_address: null,
-      notes: body.customer.notes?.trim() || null,
-      total,
-      // Con tarjeta nace 'pending' y solo pasa a 'paid' cuando el servidor le pregunta
-      // a Stripe si el cobro ocurrió. Nunca por lo que diga el navegador.
-      payment_status:
-        metodo?.type === "transfer" && body.transferProofPath ? "transfer_uploaded" : "pending",
-      transfer_proof_url: body.transferProofPath || null,
-      menu_id: body.menuId,
-      user_id: user.id,
-      delivery_location_id: perfil.delivery_location_id,
-      // Copias, no solo referencias: si un admin mueve a la clienta de punto o ella
-      // borra la tarjeta, este pedido debe seguir diciendo dónde se entregó y cómo se
-      // pagó realmente.
-      delivery_location_name: punto.name,
-      payment_method_id: metodo?.id ?? null,
-      payment_method_label: metodo ? etiquetaMetodo(metodo) : "Tarjeta",
-      stripe_payment_intent_id: intentoTarjeta?.id ?? null,
-    })
-    .select("id")
-    .single();
+  // Pedido y renglones se crean en una sola llamada a una función de Postgres, no en
+  // varios INSERT sueltos: verificar_stock() toma un candado sobre cada platillo y lo
+  // retiene hasta que la transacción de crear_pedido() termina, así que la comprobación
+  // de stock y la escritura ocurren de forma atómica. Si algo falla a la mitad —incluida
+  // la falta de stock—, Postgres deshace todo: no puede quedar un pedido sin renglones
+  // ni renglones sin su pedido.
+  const { data: orderId, error: orderError } = await supabase.rpc("crear_pedido", {
+    p_menu_id: body.menuId,
+    p_customer_name: body.customer.name.trim(),
+    p_customer_phone: body.customer.phone.trim(),
+    p_notes: body.customer.notes?.trim() || null,
+    p_delivery_location_id: perfil.delivery_location_id,
+    // Copia, no solo referencia: si un admin mueve a la clienta de punto, este pedido
+    // debe seguir diciendo dónde se entregó realmente.
+    p_delivery_location_name: punto.name,
+    p_payment_method_id: metodo?.id ?? null,
+    p_payment_method_label: metodo ? etiquetaMetodo(metodo) : "Tarjeta",
+    // Con tarjeta nace 'pending' y solo pasa a 'paid' cuando el servidor le pregunta a
+    // Stripe si el cobro ocurrió. Nunca por lo que diga el navegador.
+    p_payment_status:
+      metodo?.type === "transfer" && body.transferProofPath ? "transfer_uploaded" : "pending",
+    p_transfer_proof_url: body.transferProofPath || null,
+    p_stripe_payment_intent_id: intentoTarjeta?.id ?? null,
+    p_total: total,
+    p_items: resolvedItems.map((item) => ({
+      dish_id: item.dishId,
+      dish_name: item.dishName,
+      day_label: item.dayLabel,
+      day_date: item.dayDate,
+      unit_price: item.unitPrice,
+      quantity: item.quantity,
+      options: item.options.map((o) => ({
+        group_label: o.groupLabel,
+        choice_label: o.choiceLabel,
+        extra_cost: o.extraCost,
+      })),
+    })),
+  });
 
-  if (orderError || !order) {
-    return NextResponse.json({ error: "No se pudo crear el pedido." }, { status: 500 });
+  if (orderError || !orderId) {
+    // 23514 = check_violation: es como verificar_stock() marca "no alcanza" — el
+    // mensaje ya trae "Solo quedan N de <platillo>", así que se muestra tal cual en
+    // vez de un genérico. Un cobro con tarjeta ya iniciado se cancela: sin pedido que
+    // lo referencie, quedaría huérfano en el dashboard de Stripe sin cobrar nada.
+    if (intentoTarjeta) {
+      await stripe.paymentIntents
+        .cancel(intentoTarjeta.id, { cancellation_reason: "abandoned" })
+        .catch(() => {});
+    }
+    const sinStock = orderError?.code === "23514";
+    return NextResponse.json(
+      { error: sinStock ? orderError!.message : "No se pudo crear el pedido." },
+      { status: sinStock ? 409 : 500 }
+    );
   }
 
-  for (const item of resolvedItems) {
-    const { data: orderItem, error: itemError } = await supabase
-      .from("order_items")
-      .insert({
-        order_id: order.id,
-        dish_id: item.dishId,
-        dish_name: item.dishName,
-        day_label: item.dayLabel,
-        day_date: item.dayDate,
-        unit_price: item.unitPrice,
-        quantity: item.quantity,
-      })
-      .select("id")
-      .single();
-
-    if (itemError || !orderItem) {
-      await supabase.rpc("delete_incomplete_order", { order_id: order.id });
-      return NextResponse.json({ error: "No se pudo guardar el pedido." }, { status: 500 });
-    }
-
-    if (item.options.length > 0) {
-      const { error: optionsError } = await supabase.from("order_item_options").insert(
-        item.options.map((o) => ({
-          order_item_id: orderItem.id,
-          option_group_label: o.groupLabel,
-          chosen_option_label: o.choiceLabel,
-          extra_cost: o.extraCost,
-        }))
-      );
-      if (optionsError) {
-        await supabase.rpc("delete_incomplete_order", { order_id: order.id });
-        return NextResponse.json({ error: "No se pudo guardar el pedido." }, { status: 500 });
-      }
-    }
-  }
+  const order = { id: orderId };
 
   // ── Cobro con tarjeta ───────────────────────────────────────────────────
   //

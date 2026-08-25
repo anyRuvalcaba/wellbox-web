@@ -68,6 +68,23 @@ Y el remate: su plan de pruebas tiene **20 pruebas de PaymentMethods, todas pasa
 ninguna lo detectó — porque nadie escribió "la usuaria B no puede borrar la tarjeta de la
 usuaria A".
 
+### Crear un pedido es una sola transacción, no varias llamadas sueltas
+
+Hasta T-003, `POST /api/orders` insertaba el pedido y cada renglón con llamadas HTTP
+separadas — el mismo patrón que tenía el rollback parcheado de T-001
+(`delete_incomplete_order`, que borraba un pedido a medias si algo fallaba entre una
+llamada y la siguiente).
+
+Con el stock, ese hueco dejó de ser tolerable: la comprobación de disponibilidad tiene
+que ocurrir bajo el mismo candado que la escritura, o dos clientas pueden ver "queda 1"
+y las dos completar su pedido. La solución fue una función de Postgres,
+`crear_pedido()`, que hace todo —candado, comprobación, inserción del pedido, de cada
+renglón y de sus opciones— en una sola transacción. Si algo falla a la mitad, Postgres
+deshace todo solo: **el parche ya no tiene trabajo que hacer**, y se eliminó.
+
+Es el cierre de un ciclo: T-001 detectó el problema y lo parchó: T-003 lo resolvió de
+raíz.
+
 En WellBox la regla no vive en seis funciones, vive en la tabla:
 
 ```sql
@@ -282,6 +299,82 @@ autenticado por otro medio y aislado en un archivo.
 Si esta llave se filtra, quien la tenga puede leer y modificar todo. Por eso: nunca se
 commitea, nunca va al navegador, y si se filtrara hay que rotarla desde el dashboard de
 Supabase. Es el mismo trato que cualquier credencial de administrador.
+
+---
+
+## 6d. Stock: se calcula, no se descuenta
+
+**La pregunta:** "¿cómo llevas el inventario?"
+
+Hay dos maneras. La obvia es **descontar**: bajar un contador al crear el pedido y subirlo
+al cancelarlo. La que se eligió es **calcular**:
+
+```
+disponible = stock − lo pedido en pedidos vivos
+```
+
+El motivo es concreto y salió de este mismo proyecto. Un pedido puede terminar en cinco
+estados distintos: pagado, comprobante recibido, confirmado, **rechazado** (tarjeta) o
+**cancelado** (checkout abandonado). Con un contador, cada uno de esos caminos necesita
+lógica que devuelva el stock. El día que se agregue un sexto estado y alguien olvide
+compensarlo, queda **inventario fantasma**: cajas que nadie puede comprar y nadie sabe
+por qué.
+
+Calculándolo, cancelar devuelve el stock **solo**. Da igual quién cambie el estado —el
+webhook de Stripe, el panel, una corrección a mano en SQL—: la disponibilidad se ajusta
+sin código que lo recuerde.
+
+El costo es una consulta agregada. Con unos pocos platillos por semana, irrelevante.
+
+**Un pedido sin pagar sí aparta su caja.** Si no, dos clientas podrían llegar al checkout
+por la última al mismo tiempo y las dos pasarían. Es lo mismo que hace una tienda cuando
+aparta el producto mientras pagas.
+
+### El bug que atrapó la prueba
+
+La primera versión de la vista usaba un `LEFT JOIN` a `orders` con la condición del
+estado dentro del `ON`. Eso deja la fila de `order_items` presente aunque el pedido no
+califique, así que `sum(oi.quantity)` **la seguía contando**: cancelar un pedido no
+devolvía el stock.
+
+Compilaba, no daba error, y devolvía un número plausible. Lo detectó la prueba de CA-3,
+que verifica justamente el comportamiento —no la sintaxis.
+
+Se corrigió con `filter (where o.id is not null)`.
+
+### Dos clientas por la última caja
+
+Entre "verifiqué que hay stock" y "guardé el pedido" caben otras peticiones. Sin un
+candado, las dos ven "queda 1" y las dos crean su pedido: sobreventa.
+
+La comprobación toma un candado sobre la fila del **platillo** —el recurso escaso—, no
+sobre el pedido. Las peticiones por el mismo platillo hacen fila; las de platillos
+distintos no se estorban.
+
+**Esto se prueba con dos conexiones reales compitiendo**, no con un archivo SQL: con una
+sola conexión las operaciones van en orden y el candado nunca tiene que hacer su trabajo.
+`scripts/db-test-concurrencia.sh` lanza dos sesiones simultáneas por la última caja:
+
+```
+→ Ana:  pasó
+→ Beto: rechazada
+→ pedidos que pasaron: 1
+→ cajas comprometidas: 2 de 2
+   rechazo: ERROR: Solo quedan 0 de Bowl Limitado
+```
+
+Es la prueba que vale la pena correr en vivo el día de la defensa.
+
+**Y se repitió contra producción, por el endpoint HTTP completo.** Con el servidor
+apuntando a la base real, dos peticiones `POST /api/orders` simultáneas por la última
+unidad de un platillo real del menú: una devolvió `200` con el pedido creado, la otra
+`409` con "Solo quedan 0 de Waffles de Avena y Queso". La base terminó exactamente en
+`reservado = stock`. No es una simulación — es el mismo camino que sigue una clienta real,
+ejercitado dos veces a la vez.
+
+Contraste con la referencia: el proyecto del curso **declara** `Product.stock` pero solo
+lo usa para filtrar búsquedas. Su `createOrder` no lo valida ni lo descuenta, así que se
+puede pedir cualquier cantidad de cualquier producto agotado.
 
 ---
 

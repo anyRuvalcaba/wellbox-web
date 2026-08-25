@@ -27,6 +27,9 @@ interface DishDraft {
   photoUrl: string | null;
   photoFile: File | null;
   optionGroups: DraftGroup[];
+  // Cadena vacía = sin límite. Se guarda como texto porque es lo que un <input> maneja;
+  // se convierte a número o null justo antes de guardar.
+  stock: string;
 }
 
 function dishToDraft(dish: MenuDish | null, menuDayId: string): DishDraft {
@@ -39,6 +42,7 @@ function dishToDraft(dish: MenuDish | null, menuDayId: string): DishDraft {
       photoUrl: null,
       photoFile: null,
       optionGroups: [],
+      stock: "",
     };
   }
   return {
@@ -49,6 +53,7 @@ function dishToDraft(dish: MenuDish | null, menuDayId: string): DishDraft {
     price: String(dish.price),
     photoUrl: dish.photoUrl,
     photoFile: null,
+    stock: dish.stock === null ? "" : String(dish.stock),
     optionGroups: dish.optionGroups.map((g) => ({
       label: g.label,
       type: g.type,
@@ -82,6 +87,10 @@ export default function MenuEditor({
       setError("Nombre y precio son obligatorios.");
       return;
     }
+    if (editing.stock.trim() !== "" && Number(editing.stock) < 0) {
+      setError("El stock no puede ser negativo.");
+      return;
+    }
     setSaving(true);
     setError(null);
     const supabase = createClient();
@@ -95,6 +104,7 @@ export default function MenuEditor({
           name: editing.name.trim(),
           description: editing.description.trim() || null,
           price: Number(editing.price),
+          stock: editing.stock.trim() === "" ? null : Number(editing.stock),
         })
         .eq("id", dishId);
       if (updateError) {
@@ -112,6 +122,7 @@ export default function MenuEditor({
           description: editing.description.trim() || null,
           price: Number(editing.price),
           position: day?.dishes.length ?? 0,
+          stock: editing.stock.trim() === "" ? null : Number(editing.stock),
         })
         .select("id")
         .single();
@@ -221,6 +232,14 @@ export default function MenuEditor({
                       <p className="font-semibold">{dish.name}</p>
                       <p className="text-xs text-brown/50">
                         {formatMXN(dish.price)} · {dish.optionGroups.length} grupo(s) de opciones
+                        {dish.stock !== null && (
+                          <>
+                            {" · "}
+                            <span className={dish.available === 0 ? "text-rust font-semibold" : ""}>
+                              {dish.available === 0 ? "Agotado" : `Quedan ${dish.available} de ${dish.stock}`}
+                            </span>
+                          </>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -344,6 +363,23 @@ function DishFormModal({
             value={draft.price}
             onChange={(e) => onChange({ ...draft, price: e.target.value })}
           />
+        </div>
+        <div>
+          <label className="text-sm font-semibold block mb-1">
+            Cajas disponibles <span className="font-normal text-brown/50">(opcional)</span>
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            placeholder="Déjalo vacío para no limitar"
+            className="w-full rounded-lg border border-peach px-3 py-2"
+            value={draft.stock}
+            onChange={(e) => onChange({ ...draft, stock: e.target.value })}
+          />
+          <p className="text-xs text-brown/50 mt-1">
+            Cuando se agote, las clientas ya no podrán agregarlo al pedido.
+          </p>
         </div>
         <div>
           <label className="text-sm font-semibold block mb-1">Foto</label>

@@ -80,6 +80,7 @@ export type Database = {
           photo_url: string | null
           position: number
           price: number
+          stock: number | null
         }
         Insert: {
           description?: string | null
@@ -89,6 +90,7 @@ export type Database = {
           photo_url?: string | null
           position?: number
           price?: number
+          stock?: number | null
         }
         Update: {
           description?: string | null
@@ -98,6 +100,7 @@ export type Database = {
           photo_url?: string | null
           position?: number
           price?: number
+          stock?: number | null
         }
         Relationships: [
           {
@@ -430,12 +433,51 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      dish_availability: {
+        Row: {
+          dish_id: string
+          menu_day_id: string
+          stock: number | null
+          reservado: number
+          disponible: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dishes_menu_day_id_fkey"
+            columns: ["menu_day_id"]
+            isOneToOne: false
+            referencedRelation: "menu_days"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
-      delete_incomplete_order: {
-        Args: { order_id: string }
+      crear_pedido: {
+        Args: {
+          p_menu_id: string
+          p_customer_name: string
+          p_customer_phone: string
+          p_notes: string | null
+          p_delivery_location_id: string | null
+          p_delivery_location_name: string | null
+          p_payment_method_id: string | null
+          p_payment_method_label: string | null
+          p_payment_status: string
+          p_transfer_proof_url: string | null
+          p_stripe_payment_intent_id: string | null
+          p_total: number
+          p_items: Json
+        }
+        Returns: string
+      }
+      verificar_stock: {
+        Args: { dish_id: string; cantidad: number }
         Returns: undefined
+      }
+      estados_que_consumen_stock: {
+        Args: Record<PropertyKey, never>
+        Returns: string[]
       }
       clone_dish_into_day: {
         Args: { source_dish_id: string; target_menu_day_id: string }

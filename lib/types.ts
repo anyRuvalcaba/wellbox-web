@@ -19,6 +19,11 @@ export interface MenuDish {
   price: number;
   photoUrl: string | null;
   optionGroups: OptionGroup[];
+  // available: cuántas quedan por vender ahora mismo (stock menos lo ya pedido).
+  // stock: el tope que el admin configuró — el que se edita en el formulario.
+  // Los dos son null cuando el platillo no tiene límite.
+  available: number | null;
+  stock: number | null;
 }
 
 export interface MenuDay {
