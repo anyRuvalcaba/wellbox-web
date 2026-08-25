@@ -123,6 +123,166 @@ tarjeta.
 
 **Una columna que no existe no se puede llenar por accidente.**
 
+
+---
+
+## 6b. Pago en línea: por qué Stripe es el dueño de las tarjetas
+
+**La pregunta:** "¿por qué no guardas las tarjetas en tu base como el proyecto del curso?"
+
+El Payment Element de Stripe, combinado con una `CustomerSession`, ya muestra las
+tarjetas guardadas de cada clienta, la deja elegir entre ellas, agregar una nueva y
+borrar viejas. Construir eso otra vez sería duplicar trabajo **y** duplicar el dato:
+mantener marca y últimos cuatro en dos lugares es garantizar que algún día no coincidan.
+
+Y refuerza el punto anterior sobre datos de tarjeta: con el Payment Element **el número
+se captura dentro de un iframe de Stripe y nunca llega al servidor de WellBox**. La
+decisión pasó de "no lo guardamos" a "no lo recibimos", que es más fuerte — no depende
+de que nadie se equivoque al escribir un controlador.
+
+Contraste con la referencia: el proyecto del curso guarda `cardNumber` y `cvv` en texto
+plano **y nunca cobra nada**. Asume todo el riesgo de custodiar datos de tarjeta sin
+obtener el beneficio de procesarlos.
+
+### El pedido se crea antes del cobro
+
+Podría hacerse al revés: cobrar y luego crear el pedido. No se hizo, porque si el cobro
+pasa y la creación falla, **la clienta queda cobrada sin pedido y sin registro de qué
+compró**. Con este orden el peor caso es un pedido `pending` que sí se pagó: visible,
+reconciliable y con el dinero localizable.
+
+Es la misma lógica de la pregunta modelo de la rúbrica sobre la base de datos cayéndose
+en pleno checkout: en un cobro, la duda de si te cobraron es peor que un error claro.
+
+### El importe se calcula en el servidor, en centavos
+
+Stripe recibe el importe en la unidad mínima de la moneda: $155.00 son `15500`. La
+conversión usa `Math.round`, no truncamiento — un `154.999` truncado cobraría un peso de
+menos, y esos errores se acumulan.
+
+El importe sale del carrito recalculado contra la base, nunca de lo que mande el
+navegador. Mismo criterio que ya se aplicaba en `POST /api/orders`, y lo contrario de
+`createOrder` del proyecto del curso, que lee `totalPrice` del body.
+
+### "Pagado" lo decide el servidor, preguntándole a Stripe
+
+`verificarPagoDelPedido()` consulta el PaymentIntent a Stripe y solo entonces marca el
+pedido. Nunca se marca por lo que diga el navegador: un cliente puede llamar a cualquier
+endpoint con cualquier cuerpo, pero no puede hacer que Stripe mienta.
+
+### Los checkouts abandonados se cancelan, no se retoman
+
+**La pregunta:** "otros e-commerce te dejan retomar un pedido pendiente, ¿por qué el tuyo
+no?"
+
+Retomar tiene sentido con un catálogo permanente: el producto sigue existiendo, al mismo
+precio, la semana que viene. En WellBox no:
+
+- Los pedidos caducan solos con el cierre de las 11pm del día anterior.
+- El menú cambia cada semana, así que un pedido de hace días apunta a platillos que ya no
+  están publicados.
+- El importe del cobro queda congelado al crearlo; retomarlo con un carrito distinto
+  obligaría a actualizar el cobro y revalidar precios y cierres.
+
+Y el caso real no es "abandoné el martes y vuelvo el viernes": es una tarjeta rechazada
+seguida de otro intento, o una recarga de página, todo en minutos. Para eso lo correcto
+no es preguntar, es que no se acumulen: al empezar un checkout con tarjeta se cancelan
+los anteriores sin pagar, en la base **y en Stripe**.
+
+Deja como máximo un pendiente vivo por clienta y por semana, sin interfaz nueva que
+explicar y sin riesgo de cobrar un importe viejo.
+
+**El detalle que hace que esto sea seguro:** antes de cancelar se le pregunta a Stripe el
+estado real del cobro. Si está `succeeded` o `processing`, no se toca — cancelar un
+pedido ya pagado sería mucho peor que dejar ruido. No basta con mirar el estado guardado,
+porque el webhook puede no haber llegado todavía.
+
+### El equipo no puede marcar un pedido como pagado
+
+En `/admin/pedidos`, los estados que vienen del cobro —pagado, rechazado, abandonado— se
+muestran pero no se editan. Solo se pueden cambiar a mano los de transferencia y
+efectivo, que son los que sí dependen de que una persona verifique algo.
+
+Dejar que alguien marcara "pagado" a mano sería permitir afirmar un cobro que nadie
+verificó, y rompería la regla de que ese estado lo decide Stripe.
+
+### El carrito no se vacía hasta que el cobro confirma
+
+Si la tarjeta es rechazada, la clienta conserva lo que armó. Vaciar el carrito al iniciar
+el pago la obligaría a rehacer el pedido justo después de una frustración.
+
+---
+
+## 6c. El webhook y la llave de servicio
+
+**La pregunta que van a hacer:** "usas una llave que salta la seguridad de tu base, ¿por
+qué eso no tira todo tu argumento de RLS?"
+
+### Qué significa "salta las políticas"
+
+Supabase emite dos llaves, y las dos son tokens JWT. La diferencia está en un solo dato
+adentro: el rol con el que la petición llega a Postgres.
+
+| Llave | Rol en Postgres | Qué ve |
+|---|---|---|
+| `anon` / publicable | `anon` o `authenticated` | Solo lo que las políticas permiten |
+| `service_role` | `service_role` | **Todo** |
+
+No es que el código ignore las políticas: **es Postgres el que no se las aplica a ese
+rol**, porque está creado con el atributo `BYPASSRLS`. Un `select * from orders` con la
+llave pública devuelve los pedidos propios; con la llave de servicio devuelve los de
+todas las clientas.
+
+Y aplica igual a la escritura. Incluso el trigger `protect_role()` deja pasar un cambio
+de rol cuando `auth.uid()` es nulo — que es justo el caso de esta llave. Eso es
+deliberado (así se creó la primera cuenta admin), pero significa que **quien tenga esta
+llave puede volverse administrador**. Es control total de la base.
+
+### Por qué el webhook no puede funcionar sin ella
+
+La petición del webhook la manda el servidor de Stripe. No hay navegador, no hay cookies,
+no hay sesión: `auth.uid()` es nulo. Todas las políticas de `orders` son
+`to authenticated` y comparan contra `auth.uid()`, así que el webhook llegaría como
+`anon` y su `update` afectaría **cero filas, sin error**. No es que sea incómodo pasar
+por RLS: es que es imposible.
+
+### Por qué eso no rompe el argumento
+
+Lo que autentica al webhook **no es una sesión, es la firma de Stripe**. Antes de tocar
+la base, la ruta recalcula la firma sobre el cuerpo crudo con el secreto compartido; si
+no coincide, responde 400 y no sigue. Sin esa verificación, cualquiera podría marcar
+pedidos como pagados con un simple POST.
+
+Además:
+
+- **Superficie mínima:** un solo archivo la usa. Lo único que hace es leer un pedido,
+  preguntarle a Stripe si el cobro ocurrió, y actualizar el estado.
+- **No acepta datos arbitrarios:** el id del pedido sale de los `metadata` del
+  PaymentIntent, que solo escribe nuestro propio servidor al crearlo.
+- **No puede llegar al navegador:** la variable no lleva prefijo `NEXT_PUBLIC_`, así que
+  Next falla el build si un componente cliente intenta importarla.
+
+### Alternativas que se descartaron
+
+- **Darle a `anon` una política para actualizar pedidos por id de PaymentIntent.** Eso
+  permitiría a cualquiera marcar pedidos como pagados. Peor que el problema.
+- **Una función `security definer` llamable por `anon`.** Mismo problema: Postgres no
+  puede consultarle a Stripe si el cobro ocurrió, así que tendría que creerle a quien la
+  llama.
+
+**La conclusión, y es el argumento:** la comprobación que hace seguro a este camino —la
+firma de Stripe— no puede vivir dentro de la base de datos. Tiene que correr en código, y
+ese código necesita escribir sin sesión. La llave de servicio no es una excepción a la
+regla de "la autorización vive en la base": es el reconocimiento de que hay exactamente
+un caso donde la base no tiene la información para decidir, y ese caso está acotado,
+autenticado por otro medio y aislado en un archivo.
+
+### El riesgo, dicho de frente
+
+Si esta llave se filtra, quien la tenga puede leer y modificar todo. Por eso: nunca se
+commitea, nunca va al navegador, y si se filtrara hay que rotarla desde el dashboard de
+Supabase. Es el mismo trato que cualquier credencial de administrador.
+
 ---
 
 ## 7. Puntos de entrega fijos en vez de direcciones libres

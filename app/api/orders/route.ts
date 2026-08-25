@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isOrderable } from "@/lib/cutoff";
+import { aCentavos, MONEDA, stripe } from "@/lib/stripe/server";
+import { cancelarCheckoutsAbandonados } from "@/lib/stripe/cancelar";
 
 interface OrderItemPayload {
   dayDate: string;
@@ -17,26 +19,18 @@ interface OrderPayload {
     notes: string;
   };
   items: OrderItemPayload[];
+  // Para efectivo y transferencia es el id de payment_methods. Para tarjeta llega la
+  // cadena "card": las tarjetas ya no viven en esta base, las administra Stripe.
   paymentMethodId: string;
   transferProofPath: string;
 }
 
+const PAGO_CON_TARJETA = "card";
+
 // Mismo criterio que lib/pagos.ts, pero del lado del servidor: la etiqueta que se
 // guarda en el pedido no puede depender de lo que mande el cliente.
-function etiquetaMetodo(metodo: {
-  type: string;
-  label: string | null;
-  card_brand: string | null;
-  card_last4: string | null;
-}): string {
-  if (metodo.label?.trim()) {
-    return metodo.card_last4
-      ? `${metodo.label.trim()} (···· ${metodo.card_last4})`
-      : metodo.label.trim();
-  }
-  if (metodo.type === "card" && metodo.card_brand && metodo.card_last4) {
-    return `${metodo.card_brand} ···· ${metodo.card_last4}`;
-  }
+function etiquetaMetodo(metodo: { type: string; label: string | null }): string {
+  if (metodo.label?.trim()) return metodo.label.trim();
   return metodo.type === "cash" ? "Efectivo" : "Transferencia";
 }
 
@@ -70,20 +64,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Elige una forma de pago." }, { status: 400 });
   }
 
+  const conTarjeta = body.paymentMethodId === PAGO_CON_TARJETA;
+
   // No se filtra por user_id a propósito: la política de payment_methods ya limita la
   // lectura a los propios. Si el id fuera de otra persona, esto devuelve vacío.
-  const { data: metodo } = await supabase
-    .from("payment_methods")
-    .select("id, type, label, card_brand, card_last4")
-    .eq("id", body.paymentMethodId)
-    .maybeSingle();
+  const { data: metodo } = conTarjeta
+    ? { data: null }
+    : await supabase
+        .from("payment_methods")
+        .select("id, type, label")
+        .eq("id", body.paymentMethodId)
+        .maybeSingle();
 
-  if (!metodo) {
+  if (!conTarjeta && !metodo) {
     return NextResponse.json({ error: "Esa forma de pago no está disponible." }, { status: 400 });
   }
 
   // El comprobante solo tiene sentido si se paga por transferencia.
-  if (metodo.type === "transfer" && !body.transferProofPath) {
+  if (metodo?.type === "transfer" && !body.transferProofPath) {
     return NextResponse.json(
       { error: "Sube tu comprobante de transferencia." },
       { status: 400 }
@@ -185,6 +183,35 @@ export async function POST(request: Request) {
     });
   }
 
+  // Con tarjeta, el cobro se crea antes que el pedido para poder guardar su id en el
+  // mismo INSERT. Todavía no se cobra nada: un PaymentIntent recién creado solo reserva
+  // la intención, y si el pedido no llega a crearse expira solo sin consecuencias.
+  let intentoTarjeta: Awaited<ReturnType<typeof stripe.paymentIntents.create>> | null = null;
+
+  if (conTarjeta) {
+    try {
+      // Antes de abrir un checkout nuevo se cierran los que quedaron a medias. Así hay
+      // como máximo un pedido sin pagar por clienta y por semana, en vez de uno por cada
+      // vez que recargó la página o le rechazaron la tarjeta.
+      await cancelarCheckoutsAbandonados(user.id, body.menuId);
+
+      const clienteStripe = await obtenerClienteStripe(supabase, user.id, user.email);
+      intentoTarjeta = await stripe.paymentIntents.create({
+        // El importe sale del total calculado arriba contra la base, nunca del cliente.
+        amount: aCentavos(total),
+        currency: MONEDA,
+        customer: clienteStripe,
+        automatic_payment_methods: { enabled: true },
+        metadata: { wellbox_user_id: user.id },
+      });
+    } catch {
+      return NextResponse.json(
+        { error: "No pudimos iniciar el cobro. Intenta de nuevo en un momento." },
+        { status: 503 }
+      );
+    }
+  }
+
   const { data: order, error: orderError } = await supabase
     .from("orders")
     .insert({
@@ -194,8 +221,10 @@ export async function POST(request: Request) {
       delivery_address: null,
       notes: body.customer.notes?.trim() || null,
       total,
+      // Con tarjeta nace 'pending' y solo pasa a 'paid' cuando el servidor le pregunta
+      // a Stripe si el cobro ocurrió. Nunca por lo que diga el navegador.
       payment_status:
-        metodo.type === "transfer" && body.transferProofPath ? "transfer_uploaded" : "pending",
+        metodo?.type === "transfer" && body.transferProofPath ? "transfer_uploaded" : "pending",
       transfer_proof_url: body.transferProofPath || null,
       menu_id: body.menuId,
       user_id: user.id,
@@ -204,8 +233,9 @@ export async function POST(request: Request) {
       // borra la tarjeta, este pedido debe seguir diciendo dónde se entregó y cómo se
       // pagó realmente.
       delivery_location_name: punto.name,
-      payment_method_id: metodo.id,
-      payment_method_label: etiquetaMetodo(metodo),
+      payment_method_id: metodo?.id ?? null,
+      payment_method_label: metodo ? etiquetaMetodo(metodo) : "Tarjeta",
+      stripe_payment_intent_id: intentoTarjeta?.id ?? null,
     })
     .select("id")
     .single();
@@ -250,5 +280,84 @@ export async function POST(request: Request) {
     }
   }
 
+  // ── Cobro con tarjeta ───────────────────────────────────────────────────
+  //
+  // El pedido ya existe en 'pending'. Si el cobro falla o la clienta abandona, queda un
+  // pedido sin pagar — visible y reconciliable. El orden inverso (cobrar y luego crear)
+  // tiene una falla peor: si la creación fallara, quedaría cobrada sin pedido y sin
+  // registro de qué compró.
+  if (conTarjeta) {
+    try {
+      const clienteStripe = await obtenerClienteStripe(supabase, user.id, user.email);
+
+      // El PaymentIntent se crea DESPUÉS del pedido, pero su id se guarda con un
+      // update... que la sesión de la clienta no puede hacer: la política de `orders`
+      // solo permite actualizar a un admin. Por eso el id se escribe en el INSERT, y
+      // para eso el intento tiene que existir antes. Ver el bloque de arriba.
+      const sesionCliente = await stripe.customerSessions.create({
+        customer: clienteStripe,
+        components: {
+          payment_element: {
+            enabled: true,
+            features: {
+              payment_method_redisplay: "enabled",
+              payment_method_save: "enabled",
+              payment_method_save_usage: "off_session",
+              payment_method_remove: "enabled",
+            },
+          },
+        },
+      });
+
+      // El id del pedido ya existe, así que se puede dejar en los metadata del intento:
+      // es lo que el webhook usa para saber qué pedido marcar.
+      await stripe.paymentIntents.update(intentoTarjeta!.id, {
+        metadata: { order_id: order.id, wellbox_user_id: user.id },
+      });
+
+      return NextResponse.json({
+        orderId: order.id,
+        total,
+        requierePago: true,
+        clientSecret: intentoTarjeta!.client_secret,
+        customerSessionClientSecret: sesionCliente.client_secret,
+      });
+    } catch {
+      return NextResponse.json(
+        { error: "No pudimos iniciar el cobro. Intenta de nuevo en un momento." },
+        { status: 503 }
+      );
+    }
+  }
+
   return NextResponse.json({ orderId: order.id, total });
+}
+
+// Cada clienta necesita un Customer en Stripe para que sus tarjetas guardadas sean
+// suyas y de nadie más. Se crea la primera vez que paga con tarjeta y se reutiliza.
+async function obtenerClienteStripe(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  email: string | undefined
+): Promise<string> {
+  const { data: perfil } = await supabase
+    .from("profiles")
+    .select("stripe_customer_id, full_name")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (perfil?.stripe_customer_id) return perfil.stripe_customer_id;
+
+  const cliente = await stripe.customers.create({
+    email,
+    name: perfil?.full_name ?? undefined,
+    metadata: { wellbox_user_id: userId },
+  });
+
+  await supabase
+    .from("profiles")
+    .update({ stripe_customer_id: cliente.id })
+    .eq("id", userId);
+
+  return cliente.id;
 }
