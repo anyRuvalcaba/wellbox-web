@@ -1,35 +1,31 @@
 import Image from "next/image";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth";
 import SignOutButton from "./SignOutButton";
 
 const NAV = [
   { href: "/admin", label: "Inicio" },
   { href: "/admin/pedidos", label: "Pedidos" },
   { href: "/admin/menu", label: "Menú" },
+  { href: "/admin/usuarios", label: "Usuarios" },
   { href: "/admin/ajustes", label: "Ajustes" },
 ];
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/admin/login");
-  }
+  // El layout muestra los datos del admin; la verificación de permiso vive en el DAL
+  // (lib/auth.ts) y se repite en cada página, porque los layouts no se re-renderizan
+  // al navegar entre rutas hijas.
+  const admin = await requireAdmin();
 
   return (
     <div className="min-h-screen flex flex-col bg-cream">
-      <header className="bg-white border-b border-peach px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-6">
+      <header className="bg-white border-b border-peach px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-y-2 gap-x-4">
+        <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
           <Link href="/admin" className="flex items-center gap-2">
             <Image src="/logo-wellbox.png" alt="WellBox" width={32} height={32} className="rounded-full" />
             <span className="font-display text-xl text-olive-dark">wellBOX admin</span>
           </Link>
-          <nav className="flex gap-4">
+          <nav className="flex gap-3 sm:gap-4 flex-wrap">
             {NAV.map((item) => (
               <Link
                 key={item.href}
@@ -41,12 +37,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
             ))}
           </nav>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-brown/50">{user.email}</span>
+        <div className="flex items-center gap-3 sm:gap-4">
+          <span className="text-sm text-brown/50 hidden sm:inline">{admin.email}</span>
           <SignOutButton />
         </div>
       </header>
-      <main className="flex-1 px-6 py-6 max-w-5xl w-full mx-auto">{children}</main>
+      <main className="flex-1 px-4 sm:px-6 py-6 max-w-5xl w-full mx-auto">{children}</main>
     </div>
   );
 }

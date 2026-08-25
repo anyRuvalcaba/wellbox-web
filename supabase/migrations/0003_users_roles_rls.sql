@@ -12,6 +12,9 @@
 
 create table profiles (
   id uuid primary key references auth.users(id) on delete cascade,
+  -- email se copia de auth.users porque la pantalla de administración de usuarios
+  -- necesita mostrarlo, y auth.users no es legible con la anon key desde el cliente.
+  email text,
   full_name text,
   phone text,
   role text not null default 'customer' check (role in ('customer', 'admin')),
@@ -55,9 +58,10 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, full_name, phone)
+  insert into public.profiles (id, email, full_name, phone)
   values (
     new.id,
+    new.email,
     nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''),
     nullif(trim(new.raw_user_meta_data ->> 'phone'), '')
   );
@@ -169,6 +173,30 @@ create policy "users read options of own orders, admins read all" on order_item_
         and (o.user_id = auth.uid() or public.is_admin())
     )
   );
+
+-- Rollback de un pedido que quedó a medias.
+--
+-- POST /api/orders inserta el pedido y luego sus renglones en varias llamadas. Si una
+-- falla, hay que borrar el pedido incompleto. Pero darle `delete` sobre `orders` a las
+-- clientas les permitiría borrar pedidos ya pagados, así que se expone una función
+-- acotada: solo borra un pedido propio y solo si todavía no tiene renglones.
+--
+-- Esto es un parche, no la solución. La solución es que crear el pedido sea una sola
+-- transacción; queda registrado en el backlog como parte de T-003, donde además hace
+-- falta para descontar stock de forma atómica.
+create or replace function public.delete_incomplete_order(order_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from orders o
+  where o.id = order_id
+    and o.user_id = auth.uid()
+    and not exists (select 1 from order_items oi where oi.order_id = o.id);
+end;
+$$;
 
 -- ─────────────────────────────────────────────────────────────────────────
 -- Catálogo y ajustes: administrar exige rol admin, no solo sesión.

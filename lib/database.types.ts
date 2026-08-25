@@ -265,6 +265,7 @@ export type Database = {
           payment_status: string
           total: number
           transfer_proof_url: string | null
+          user_id: string | null
         }
         Insert: {
           created_at?: string
@@ -278,6 +279,7 @@ export type Database = {
           payment_status?: string
           total?: number
           transfer_proof_url?: string | null
+          user_id?: string | null
         }
         Update: {
           created_at?: string
@@ -291,6 +293,7 @@ export type Database = {
           payment_status?: string
           total?: number
           transfer_proof_url?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -301,6 +304,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          phone: string | null
+          role: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id: string
+          phone?: string | null
+          role?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          role?: string
+        }
+        Relationships: []
       }
       settings: {
         Row: {
@@ -322,7 +352,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      delete_incomplete_order: {
+        Args: { order_id: string }
+        Returns: undefined
+      }
+      is_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

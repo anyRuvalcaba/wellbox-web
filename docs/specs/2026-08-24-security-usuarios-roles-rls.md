@@ -50,22 +50,22 @@ sobre `payment-proofs` (comprobantes de pago con datos bancarios de clientes).
 
 ## Criterios de Aceptación
 
-- [ ] **CA-1** — Existe `profiles`, ligada 1:1 a `auth.users`, con `role` restringido a
+- [x] **CA-1** — Existe `profiles`, ligada 1:1 a `auth.users`, con `role` restringido a
       `customer | admin` y default `customer`.
-- [ ] **CA-2** — Al registrarse un usuario nuevo, su fila en `profiles` se crea
+- [x] **CA-2** — Al registrarse un usuario nuevo, su fila en `profiles` se crea
       automáticamente con rol `customer`.
-- [ ] **CA-3** — Un usuario autenticado con rol `customer` **no puede** modificar su
+- [x] **CA-3** — Un usuario autenticado con rol `customer` **no puede** modificar su
       propio `role`, ni por API ni por SQL directo con su token.
-- [ ] **CA-4** — Las doce políticas exigen rol `admin`, no solo sesión autenticada.
-- [ ] **CA-5** — Un `customer` puede leer únicamente sus propios pedidos.
-- [ ] **CA-6** — Un `admin` puede leer y actualizar todos los pedidos.
+- [x] **CA-4** — Las doce políticas exigen rol `admin`, no solo sesión autenticada.
+- [x] **CA-5** — Un `customer` puede leer únicamente sus propios pedidos.
+- [x] **CA-6** — Un `admin` puede leer y actualizar todos los pedidos.
 - [ ] **CA-7** — El registro público funciona end-to-end: alta, confirmación, login,
       logout.
 - [ ] **CA-8** — `/admin/*` responde con redirección a login para un `customer`
       autenticado, no solo para usuarios anónimos.
-- [ ] **CA-9** — Existe una pantalla de administración de usuarios donde un `admin`
+- [x] **CA-9** — Existe una pantalla de administración de usuarios donde un `admin`
       puede ver la lista y cambiar roles.
-- [ ] **CA-10** — Los comprobantes en `payment-proofs` solo son legibles por `admin` y
+- [x] **CA-10** — Los comprobantes en `payment-proofs` solo son legibles por `admin` y
       por el dueño del pedido.
 
 ## Consideraciones de Seguridad
@@ -208,4 +208,51 @@ trigger de inmutabilidad.
 
 ## Resultados
 
-> Se completa al cerrar.
+- **Fecha de cierre:** 2026-08-24 (implementación); verificación en Supabase pendiente
+- **Rama:** `security/usuarios-roles-rls`
+
+### CAs cubiertos por prueba automatizada (`npm run db:verify`)
+
+CA-2, CA-3, CA-4, CA-5, CA-6, más dos controles que no estaban en el spec original y
+salieron del modelado STRIDE: que no se pueda crear un pedido a nombre ajeno
+(*spoofing*), y que el escape de servidor de `protect_role()` no sea explotable desde
+una sesión anónima.
+
+### CAs implementados pero NO verificados todavía
+
+| CA | Qué falta |
+|---|---|
+| CA-1 | La tabla existe y las pruebas la usan, pero no se ha creado en Supabase |
+| CA-7 | Registro end-to-end: requiere Supabase Auth, que no corre en el Postgres local |
+| CA-8 | `/admin` con sesión de cliente: `requireAdmin()` lo implementa; falta probarlo vivo |
+| CA-9 | La pantalla compila y consulta `profiles`; falta verla con datos reales |
+| CA-10 | Las políticas de Storage están escritas; el shim local no simula Storage |
+
+**El bloqueo es el mismo para todos: el proyecto de Supabase está pausado.** El entorno
+local reproduce Postgres y RLS, no Auth ni Storage, que son servicios de Supabase.
+
+### Deuda técnica generada
+
+`POST /api/orders` sigue insertando el pedido y sus renglones en llamadas separadas, sin
+transacción. Antes de esta migración, el rollback era un `delete` directo; ahora las
+políticas ya no permiten borrar pedidos, así que se agregó
+`delete_incomplete_order()` — una función acotada que solo borra un pedido propio y sin
+renglones. **Es un parche.** La solución real es que crear el pedido sea una sola
+transacción del lado de Postgres, y queda en T-003, donde de todas formas hace falta
+para descontar stock de forma atómica.
+
+### Cambios de alcance durante la implementación
+
+- `profiles` ganó la columna `email`, copiada de `auth.users`, porque la pantalla de
+  administración de usuarios (CA-9) necesita mostrarla y `auth.users` no es legible con
+  la anon key desde el cliente.
+- El login de admin y el de clientas se unificaron en `/login`, con redirección según
+  rol. `/admin/login` redirige ahí para no romper el enlace que el equipo ya tiene.
+- La lectura de `settings` dejó de ser anónima: pedir ahora exige cuenta, así que no hay
+  razón para exponer los datos bancarios sin sesión.
+
+### Lecciones aprendidas
+
+El entorno local de Postgres se pagó solo el mismo día: detectó que `protect_role()` se
+bloqueaba a sí misma e impedía crear el primer admin. Ese bug habría aparecido en la base
+real, como un `update` que "funciona" pero no cambia nada.
