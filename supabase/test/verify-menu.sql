@@ -30,7 +30,22 @@ begin
   if public.day_label_es('2026-09-09') <> 'Miércoles, 9 de septiembre' then
     raise exception 'ETIQUETA FALLA: dio "%"', public.day_label_es('2026-09-09');
   end if;
-  raise notice 'ETIQUETAS OK — días y meses en español, sin depender del locale del servidor';
+  -- Comparar contra un literal NO basta: si este archivo sufriera el mismo problema de
+  -- codificación que la migración, el error coincidiría consigo mismo y la prueba
+  -- pasaría en falso. Ya ocurrió: `pbcopy` con LC_CTYPE=C convirtió la é en dos
+  -- caracteres al pasar la migración a Supabase, y la comparación literal no lo vio.
+  --
+  -- Contar caracteres y bytes sí lo detecta: 'Miércoles, 9 de septiembre' son 26
+  -- caracteres y 27 bytes, porque la é ocupa dos bytes en UTF-8. Si la é llegó rota,
+  -- son 27 caracteres y 29 bytes.
+  if length(public.day_label_es('2026-09-09')) <> 26
+     or octet_length(public.day_label_es('2026-09-09')) <> 27 then
+    raise exception 'ETIQUETA FALLA: la é está mal codificada — % caracteres, % bytes (deben ser 26 y 27)',
+      length(public.day_label_es('2026-09-09')),
+      octet_length(public.day_label_es('2026-09-09'));
+  end if;
+
+  raise notice 'ETIQUETAS OK — español correcto, con la é en un solo carácter';
 end $$;
 
 -- ── Copiar un platillo se lleva sus opciones ───────────────────────────────
