@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { verificarPagoDelPedido } from "@/lib/stripe/verificar";
 
 // Webhook de Stripe.
@@ -41,7 +40,7 @@ export async function POST(request: Request) {
       // Se vuelve a consultar el estado en vez de confiar en el cuerpo del evento: es la
       // misma función que usa la pantalla de confirmación, y es idempotente. Que lleguen
       // los dos caminos es lo esperado, no un problema.
-      await verificarPagoDelPedido(createAdminClient(), orderId);
+      await verificarPagoDelPedido(orderId);
     }
   }
 

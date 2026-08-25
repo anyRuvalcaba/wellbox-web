@@ -182,6 +182,30 @@ export async function POST(request: Request) {
     });
   }
 
+  // Con tarjeta, el cobro se crea antes que el pedido para poder guardar su id en el
+  // mismo INSERT. Todavía no se cobra nada: un PaymentIntent recién creado solo reserva
+  // la intención, y si el pedido no llega a crearse expira solo sin consecuencias.
+  let intentoTarjeta: Awaited<ReturnType<typeof stripe.paymentIntents.create>> | null = null;
+
+  if (conTarjeta) {
+    try {
+      const clienteStripe = await obtenerClienteStripe(supabase, user.id, user.email);
+      intentoTarjeta = await stripe.paymentIntents.create({
+        // El importe sale del total calculado arriba contra la base, nunca del cliente.
+        amount: aCentavos(total),
+        currency: MONEDA,
+        customer: clienteStripe,
+        automatic_payment_methods: { enabled: true },
+        metadata: { wellbox_user_id: user.id },
+      });
+    } catch {
+      return NextResponse.json(
+        { error: "No pudimos iniciar el cobro. Intenta de nuevo en un momento." },
+        { status: 503 }
+      );
+    }
+  }
+
   const { data: order, error: orderError } = await supabase
     .from("orders")
     .insert({
@@ -205,6 +229,7 @@ export async function POST(request: Request) {
       delivery_location_name: punto.name,
       payment_method_id: metodo?.id ?? null,
       payment_method_label: metodo ? etiquetaMetodo(metodo) : "Tarjeta",
+      stripe_payment_intent_id: intentoTarjeta?.id ?? null,
     })
     .select("id")
     .single();
@@ -259,18 +284,10 @@ export async function POST(request: Request) {
     try {
       const clienteStripe = await obtenerClienteStripe(supabase, user.id, user.email);
 
-      const intento = await stripe.paymentIntents.create({
-        // El importe sale del total calculado arriba contra la base, nunca del cliente.
-        amount: aCentavos(total),
-        currency: MONEDA,
-        customer: clienteStripe,
-        automatic_payment_methods: { enabled: true },
-        metadata: { order_id: order.id, wellbox_user_id: user.id },
-      });
-
-      // La CustomerSession es lo que hace que el Payment Element muestre las tarjetas
-      // guardadas de ESTA clienta y le permita agregar o borrar. Se emite contra su
-      // propio customer, así que no puede alcanzar las de nadie más.
+      // El PaymentIntent se crea DESPUÉS del pedido, pero su id se guarda con un
+      // update... que la sesión de la clienta no puede hacer: la política de `orders`
+      // solo permite actualizar a un admin. Por eso el id se escribe en el INSERT, y
+      // para eso el intento tiene que existir antes. Ver el bloque de arriba.
       const sesionCliente = await stripe.customerSessions.create({
         customer: clienteStripe,
         components: {
@@ -286,27 +303,20 @@ export async function POST(request: Request) {
         },
       });
 
-      await supabase
-        .from("orders")
-        .update({ stripe_payment_intent_id: intento.id })
-        .eq("id", order.id);
+      // El id del pedido ya existe, así que se puede dejar en los metadata del intento:
+      // es lo que el webhook usa para saber qué pedido marcar.
+      await stripe.paymentIntents.update(intentoTarjeta!.id, {
+        metadata: { order_id: order.id, wellbox_user_id: user.id },
+      });
 
       return NextResponse.json({
         orderId: order.id,
         total,
         requierePago: true,
-        clientSecret: intento.client_secret,
+        clientSecret: intentoTarjeta!.client_secret,
         customerSessionClientSecret: sesionCliente.client_secret,
       });
-    } catch (error) {
-      // El pedido queda 'pending' con el motivo, en vez de desaparecer sin explicación.
-      await supabase
-        .from("orders")
-        .update({
-          payment_error: error instanceof Error ? error.message : "Error desconocido",
-        })
-        .eq("id", order.id);
-
+    } catch {
       return NextResponse.json(
         { error: "No pudimos iniciar el cobro. Intenta de nuevo en un momento." },
         { status: 503 }

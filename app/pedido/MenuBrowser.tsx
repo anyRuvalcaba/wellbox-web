@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useCart } from "./cart-context";
 import { isOrderable, nextUpcomingCutoff } from "@/lib/cutoff";
@@ -9,13 +9,29 @@ import type { CartItem, CartSelectedOption, MenuDish, PublishedMenu } from "@/li
 import { CHIP_DANGER, CHIP_OLIVE, CHIP_OLIVE_OUTLINE } from "@/lib/ui";
 import QuantityStepper from "./QuantityStepper";
 
-function useNow(intervalMs = 1000) {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), intervalMs);
-    return () => clearInterval(id);
-  }, [intervalMs]);
-  return now;
+// El reloj del navegador es un sistema externo a React, y useSyncExternalStore es el
+// primitivo hecho para eso. Lo importante aquí es el tercer argumento: el *snapshot del
+// servidor*, que devuelve null.
+//
+// Antes esto era un useState inicializado con `new Date()`, y provocaba un error de
+// hidratación: el servidor renderizaba "145h 21m 54s" y el navegador, un segundo después,
+// "145h 21m 53s". React ve dos textos distintos, da el árbol por inconsistente y lo
+// vuelve a generar completo — tirando de paso el estado de esa rama.
+//
+// Con null en el servidor, el contador simplemente no se dibuja hasta que hay navegador,
+// que es la única parte donde un reloj al segundo tiene sentido.
+//
+// El snapshot devuelve segundos y no un Date: getSnapshot debe devolver un valor estable
+// entre llamadas, y `new Date()` sería un objeto nuevo cada vez — bucle infinito.
+function useNow(intervalMs = 1000): number | null {
+  return useSyncExternalStore(
+    (alCambiar) => {
+      const id = setInterval(alCambiar, intervalMs);
+      return () => clearInterval(id);
+    },
+    () => Math.floor(Date.now() / 1000),
+    () => null
+  );
 }
 
 function formatCountdown(target: Date, now: Date): string {
@@ -37,9 +53,17 @@ export default function MenuBrowser({ menu }: { menu: PublishedMenu }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menu.id]);
 
+  // Para decidir qué días siguen abiertos basta la fecha aproximada: los cierres son a
+  // las 11pm, así que un segundo de diferencia no cambia el resultado. Lo que sí no
+  // puede renderizarse en el servidor es el contador al segundo, que es donde estaba el
+  // problema de hidratación.
+  const ahoraParaCortes = useMemo(
+    () => (now !== null ? new Date(now * 1000) : new Date()),
+    [now]
+  );
   const nextCutoff = useMemo(
-    () => nextUpcomingCutoff(menu.days.map((d) => d.dayDate), now),
-    [menu.days, now]
+    () => nextUpcomingCutoff(menu.days.map((d) => d.dayDate), ahoraParaCortes),
+    [menu.days, ahoraParaCortes]
   );
 
   return (
@@ -49,16 +73,16 @@ export default function MenuBrowser({ menu }: { menu: PublishedMenu }) {
         <p className="text-brown/70 text-sm mt-1">Entrega a las 10am. Elige tu platillo por día.</p>
       </div>
 
-      {nextCutoff && (
+      {nextCutoff && now && (
         <div className="bg-peach-light border border-peach rounded-xl px-4 py-2 text-center text-sm">
           <span className="font-semibold text-rust">Cierra el próximo pedido en </span>
-          <span className="font-semibold text-brown">{formatCountdown(nextCutoff, now)}</span>
+          <span className="font-semibold text-brown">{formatCountdown(nextCutoff, ahoraParaCortes)}</span>
         </div>
       )}
 
       <div className="flex flex-col gap-4">
         {menu.days.map((day) => (
-          <DayCard key={day.id} dayDate={day.dayDate} dayLabel={day.dayLabel} dishes={day.dishes} now={now} />
+          <DayCard key={day.id} dayDate={day.dayDate} dayLabel={day.dayLabel} dishes={day.dishes} now={ahoraParaCortes} />
         ))}
       </div>
 

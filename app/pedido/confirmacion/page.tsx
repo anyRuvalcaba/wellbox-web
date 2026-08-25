@@ -16,16 +16,22 @@ export default async function ConfirmacionPage({
   const { id } = await searchParams;
   const supabase = await createClient();
 
-  // Antes de mostrar nada se le pregunta a Stripe si el cobro ocurrió. Si la clienta
-  // llegó aquí después de autenticarse con su banco (3D Secure), este es el momento en
-  // que el pedido pasa a 'paid'. La política de orders limita todo esto al pedido
-  // propio.
+  // Primero se comprueba que el pedido sea de quien pregunta: la política de `orders`
+  // no devuelve nada si el id es de otra persona. Solo entonces se le pregunta a Stripe
+  // si el cobro ocurrió — porque esa verificación escribe con permisos de sistema y no
+  // debe dispararse sobre pedidos ajenos.
   if (id) {
-    await verificarPagoDelPedido(supabase, id);
+    const { data: esMio } = await supabase
+      .from("orders")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle();
+
+    // Si la clienta llegó aquí tras autenticarse con su banco (3D Secure), este es el
+    // momento en que el pedido pasa a 'paid'.
+    if (esMio) await verificarPagoDelPedido(id);
   }
 
-  // La política de orders limita esto al pedido propio: con el id de otra persona no
-  // devuelve nada.
   const { data: pedido } = id
     ? await supabase
         .from("orders")

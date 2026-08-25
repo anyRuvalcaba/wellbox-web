@@ -1,21 +1,24 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { stripe } from "@/lib/stripe/server";
-import type { Database } from "@/lib/database.types";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type Resultado = "paid" | "pending" | "failed" | "desconocido";
 
 // Única fuente de verdad sobre si un pedido se pagó: se le pregunta a Stripe.
 //
-// Nunca se marca 'paid' porque el navegador lo diga. Un cliente puede llamar a cualquier
-// endpoint con cualquier cuerpo; lo que no puede es hacer que Stripe mienta.
+// Escribe con la llave de servicio, y la razón es la misma que en el webhook: marcar un
+// pedido como pagado es una acción del SISTEMA, no de la clienta. La política de
+// `orders` solo permite actualizar a un admin — con razón, porque si una clienta pudiera
+// escribir en su propio pedido, podría marcarlo pagado sin pagar.
 //
-// La llaman dos caminos: la pantalla de confirmación (cuando la clienta vuelve) y el
-// webhook (cuando no vuelve, porque cerró la pestaña). Es idempotente a propósito: que
-// los dos lleguen es lo normal, no un problema.
-export async function verificarPagoDelPedido(
-  supabase: SupabaseClient<Database>,
-  orderId: string
-): Promise<Resultado> {
+// Lo que autoriza esta escritura no es una sesión: es la respuesta de Stripe. El cliente
+// puede llamar a cualquier endpoint con cualquier cuerpo, pero no puede hacer que Stripe
+// diga que un cobro ocurrió.
+//
+// Quien la llama debe haber verificado antes que el pedido es de quien pregunta.
+// Es idempotente: que lleguen el webhook y la pantalla de confirmación es lo esperado.
+export async function verificarPagoDelPedido(orderId: string): Promise<Resultado> {
+  const supabase = createAdminClient();
+
   const { data: pedido } = await supabase
     .from("orders")
     .select("id, payment_status, stripe_payment_intent_id")

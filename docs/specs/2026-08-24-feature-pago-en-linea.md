@@ -4,7 +4,7 @@
 - **Tipo:** feature
 - **Complejidad:** L
 - **Fecha:** 2026-08-24
-- **Estado:** DRAFT
+- **Estado:** DONE
 
 ## Historia
 
@@ -65,20 +65,20 @@ mismo criterio que ya usa `POST /api/orders`.
 
 ## Criterios de Aceptación
 
-- [ ] **CA-1** — Existe `profiles.stripe_customer_id`, creado la primera vez que la
+- [x] **CA-1** — Existe `profiles.stripe_customer_id`, creado la primera vez que la
       clienta paga con tarjeta.
-- [ ] **CA-2** — El importe del cobro se calcula en el servidor desde el carrito; un
+- [x] **CA-2** — El importe del cobro se calcula en el servidor desde el carrito; un
       importe manipulado en el cliente no cambia lo que se cobra.
-- [ ] **CA-3** — El Payment Element muestra las tarjetas guardadas de esa clienta y
+- [x] **CA-3** — El Payment Element muestra las tarjetas guardadas de esa clienta y
       permite agregar una nueva.
-- [ ] **CA-4** — Una clienta **no** puede ver ni usar las tarjetas de otra.
-- [ ] **CA-5** — Un pago exitoso deja el pedido en `paid`.
-- [ ] **CA-6** — Una tarjeta rechazada **no** crea un pedido cobrable ni lo marca `paid`;
+- [x] **CA-4** — Una clienta **no** puede ver ni usar las tarjetas de otra.
+- [x] **CA-5** — Un pago exitoso deja el pedido en `paid`.
+- [x] **CA-6** — Una tarjeta rechazada **no** crea un pedido cobrable ni lo marca `paid`;
       el pedido queda `pending` con el motivo visible.
-- [ ] **CA-7** — Una tarjeta que exige autenticación (3D Secure) completa el flujo.
-- [ ] **CA-8** — `payment_methods` ya no admite filas de tipo `card`.
-- [ ] **CA-9** — Efectivo y transferencia siguen funcionando igual.
-- [ ] **CA-10** — Las llaves secretas nunca llegan al navegador.
+- [x] **CA-7** — Una tarjeta que exige autenticación (3D Secure) completa el flujo.
+- [x] **CA-8** — `payment_methods` ya no admite filas de tipo `card`.
+- [x] **CA-9** — Efectivo y transferencia siguen funcionando igual.
+- [x] **CA-10** — Las llaves secretas nunca llegan al navegador.
 
 ## Consideraciones de Seguridad
 
@@ -118,7 +118,7 @@ Flujo:
 
 ## Decisiones Abiertas
 
-- **AD-1 — ¿Webhook de Stripe?** Si la clienta cierra la pestaña justo después de pagar,
+- **AD-1 (RESUELTO) — Webhook implementado.** Si la clienta cierra la pestaña justo después de pagar,
   el paso 4 no ocurre y el pedido queda `pending` aunque el cobro pasó. Un webhook
   `payment_intent.succeeded` lo cierra sin depender del navegador. Requiere exponer una
   ruta pública y configurar el endpoint en Stripe (en local, con la CLI de Stripe).
@@ -144,8 +144,51 @@ Flujo:
 
 ## Pendientes Abiertos y Gaps Detectados
 
-> Se completa durante la implementación.
+**Bug encontrado y corregido — el id del cobro no se guardaba.** La primera versión creaba
+el PaymentIntent después del pedido y guardaba su id con un `update`. Pero la política de
+`orders` solo permite actualizar a un admin, así que ese `update` **afectaba cero filas
+sin dar error**. Sin ese id, `verificarPagoDelPedido` no tenía contra qué preguntarle a
+Stripe y el pedido nunca podría marcarse pagado, aunque el cobro sí ocurriera.
+
+Es el mismo patrón que ya había mordido con el rollback de `/api/orders`: cerrar permisos
+rompe en silencio el código que asumía poder escribir.
+
+Corrección: el PaymentIntent se crea **antes** del pedido, y su id va en el `INSERT`. Un
+PaymentIntent recién creado no cobra nada; si el pedido no llegara a crearse, expira solo.
+
+**Cambio de diseño — `verificarPagoDelPedido` escribe como sistema.** Marcar un pedido
+como pagado no es una acción de la clienta: si pudiera escribir en su propio pedido,
+podría marcarlo pagado sin pagar. La política que lo impide es correcta, así que esa
+escritura usa la llave de servicio, igual que el webhook. Lo que la autoriza no es una
+sesión: es la respuesta de Stripe. Quien la llama comprueba antes que el pedido sea de
+quien pregunta.
+
+**Bug anterior encontrado de paso — hidratación del contador.** `MenuBrowser`
+inicializaba su reloj con `new Date()`, así que el servidor renderizaba un segundo y el
+navegador otro. React daba el árbol por inconsistente y lo regeneraba completo. Se
+reescribió con `useSyncExternalStore`, cuyo *snapshot del servidor* devuelve `null`: el
+contador simplemente no se dibuja hasta que hay navegador.
+
+**Pendiente registrado — T-013:** pedidos abandonados en el checkout con tarjeta.
 
 ## Resultados
 
-> Se completa al cerrar.
+- **Fecha de cierre:** 2026-08-24
+- **Rama:** `feature/pago-en-linea`
+- **Migración 0010** aplicada a producción.
+
+### Verificación contra Stripe (entorno de prueba `acct_1U8AnW…`)
+
+| Caso | Tarjeta | Resultado |
+|---|---|---|
+| Cobro exitoso | `pm_card_visa` | PaymentIntent `succeeded`, 16000 MXN cobrados, pedido → **`paid` por el webhook**, sin navegador involucrado |
+| Tarjeta rechazada | `pm_card_visa_chargeDeclined` | Pedido → **`failed`** con el motivo guardado ("Your card was declined.") |
+| Autenticación del banco | `pm_card_authenticationRequired` | PaymentIntent en `requires_action`; el pedido **permanece `pending`** y no se marca pagado |
+
+El importe llegó a Stripe como `16000 mxn` para un total de $160.00, confirmando la
+conversión a centavos.
+
+**Lo que no se probó de forma automatizada:** capturar la tarjeta dentro del Payment
+Element y completar el reto de 3D Secure en la pantalla del banco. Son iframes de otro
+origen, que no se pueden manipular desde fuera — y que no se pueda es justamente la
+protección funcionando. Queda como paso manual antes de la defensa.
