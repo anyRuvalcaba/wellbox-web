@@ -56,13 +56,15 @@ export default async function ConfirmacionPage({
               </>
             ) : tipoPago === "cash" ? (
               <>
-                Pagas <span className="font-semibold">en efectivo</span> al recibir tu
-                pedido. Te recomendamos llevar el monto exacto.
+                Recibimos tu pago <span className="font-semibold">en efectivo</span> cuando
+                entreguemos tu pedido. Te recomendamos llevar el monto exacto.
               </>
             ) : (
               <>
-                El cobro de tu tarjeta se hace al entregar tu pedido. Te confirmamos por
-                WhatsApp antes de la entrega.
+                Tu pedido quedó con{" "}
+                <span className="font-semibold text-rust">pago pendiente</span>. El cobro en
+                línea todavía no está activo, así que te contactamos por WhatsApp para
+                completarlo. <span className="font-semibold">Aún no se te ha cobrado.</span>
               </>
             )}
           </p>

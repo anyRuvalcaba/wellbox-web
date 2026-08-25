@@ -299,5 +299,12 @@ detectar tres huecos de autorización, y una suite que sí te avisa.
 - **La protección contra contraseñas filtradas requiere plan de pago.** Se identificó y
   se decidió no activarla. Sí se subió el mínimo a 8 caracteres con mayúscula, minúscula
   y dígito.
-- **El pago con tarjeta no cobra de verdad.** Registra la intención; el cobro ocurre
-  fuera de la app. Igual que el proyecto del curso, cuyo `createOrder` tampoco cobra nada.
+- **El pago con tarjeta no cobra de verdad, y eso sí es una brecha.** El modelo de
+  negocio exige cobrar al confirmar el pedido salvo en efectivo, así que para "tarjeta"
+  la pasarela no es una mejora opcional: es lo que hace que ese método exista. Hoy el
+  checkout lo dice de frente — pago pendiente, no se ha cobrado nada — y el cobro se
+  completa por WhatsApp. Registrado como T-011.
+
+  El proyecto del curso tampoco cobra nada (su `createOrder` solo guarda una referencia
+  al método), así que la brecha es la misma; la diferencia es que aquí está identificada,
+  dicha al usuario y registrada, en vez de quedar implícita.

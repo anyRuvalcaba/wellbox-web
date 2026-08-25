@@ -228,15 +228,20 @@ export default function PagoForm({
 
       {metodo?.type === "cash" && (
         <p className="text-sm text-brown/70 bg-cream-dark/40 rounded-xl px-4 py-3">
-          Pagas en efectivo al recibir tu pedido en {punto.name}. Te recomendamos llevar el
-          monto exacto: {formatMXN(cart.total)}.
+          Recibimos tu pago cuando entreguemos tu pedido en {punto.name}. Te recomendamos
+          llevar el monto exacto: {formatMXN(cart.total)}.
         </p>
       )}
 
+      {/* El pago con tarjeta debe cobrarse en línea al confirmar el pedido, pero todavía
+          no hay pasarela conectada. Decirlo de frente es mejor que dar a entender que el
+          cobro ya ocurrió: en un checkout, dejar a la clienta con la duda de si le
+          cobraron o no es el peor resultado posible. Ver T-011 en el backlog. */}
       {metodo?.type === "card" && (
-        <p className="text-sm text-brown/70 bg-cream-dark/40 rounded-xl px-4 py-3">
-          Registramos que pagarás con {describirMetodo(metodo)}. El cobro se hace al
-          entregar tu pedido — todavía no procesamos pagos con tarjeta dentro de la app.
+        <p className="text-sm text-brown/70 bg-peach-light/60 rounded-xl px-4 py-3">
+          Tu pedido queda registrado con <span className="font-semibold">pago pendiente</span>.
+          El cobro en línea todavía no está activo, así que te contactamos por WhatsApp
+          para completarlo. <span className="font-semibold">Aún no se te cobra nada.</span>
         </p>
       )}
 

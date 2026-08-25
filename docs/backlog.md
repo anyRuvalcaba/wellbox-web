@@ -17,6 +17,7 @@ Cada fase se mapea a un entregable de la evaluación técnica del curso
 | T-008 | Preparación de la defensa técnica | PENDIENTE | Justificación verbal |
 | T-009 | Duplicar semana anterior en el editor de menú | ✅ DONE | — (mejora operativa) |
 | T-010 | Identidad visual: logo y tipografía | PENDIENTE | — (detalle visual) |
+| T-011 | Pasarela de pago en línea (Stripe) | **BLOQUEA tarjeta** | Checkout completo |
 
 ---
 
@@ -198,3 +199,33 @@ logo correcto.
 
 Prioridad baja: no afecta ningún entregable ni criterio de la rúbrica. Se atiende
 cuando el resto esté cerrado, para no interrumpir el trabajo que sí evalúan.
+
+
+---
+
+## T-011 — Pasarela de pago en línea
+
+**El modelo de negocio exige cobrar al momento del pedido**, salvo efectivo:
+
+| Forma de pago | Cuándo se cobra | Estado |
+|---|---|---|
+| Efectivo | al entregar | ✅ funciona |
+| Transferencia | al pedir, con comprobante | ✅ funciona |
+| Tarjeta | **al pedir, en línea** | ⚠️ sin pasarela |
+
+Esto reclasifica la pasarela: no es una mejora opcional, es lo que hace que exista la
+forma de pago "tarjeta". Sin ella, la opción aparece en el checkout pero no cobra.
+
+Mientras tanto, el checkout dice de frente que el pago quedó pendiente y que **no se ha
+cobrado nada**. En un checkout, dejar a la clienta con la duda de si le cobraron es el
+peor resultado posible — el propio documento de evaluación le dedica una pregunta modelo
+completa a ese escenario.
+
+**Stripe en modo de prueba** no requiere cuenta de comercio ni trámites fiscales: llaves
+de prueba, tarjetas de prueba oficiales, y el flujo real de principio a fin. El día que
+los pendientes fiscales se resuelvan, se cambian las llaves sin tocar código.
+
+Pendiente de decidir con Any: si entra antes de la evaluación o si la tarjeta se presenta
+como "registro con pago pendiente" y la pasarela queda documentada como trabajo futuro.
+Las dos son defendibles; lo que no es defendible es que el checkout diga que cobró
+cuando no cobró.
