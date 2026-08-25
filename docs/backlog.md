@@ -7,14 +7,15 @@ Cada fase se mapea a un entregable de la evaluación técnica del curso
 
 | ID | Fase | Estado | Entregable que cubre |
 |---|---|---|---|
-| T-001 | Usuarios, roles y RLS | SPEC DRAFT | Login y registro operativos |
-| T-002 | Perfil, punto de entrega y métodos de pago | PENDIENTE | Checkout completo |
+| T-001 | Usuarios, roles y RLS | ✅ DONE | Login y registro operativos |
+| T-002 | Perfil, punto de entrega y métodos de pago | EN CURSO | Checkout completo |
 | T-003 | Stock y carrito | PENDIENTE | Carrito completo |
 | T-004 | Manejo de errores y resiliencia | PENDIENTE | Rúbrica: resiliencia |
 | T-005 | Suite de pruebas con Vitest | PENDIENTE | `npm test` en verde |
 | T-006 | README y `npm audit` | PENDIENTE | Calidad del repositorio |
 | T-007 | Deploy a Vercel y repo público | PENDIENTE | URL pública con SSL |
 | T-008 | Preparación de la defensa técnica | PENDIENTE | Justificación verbal |
+| T-009 | Duplicar semana anterior en el editor de menú | PENDIENTE | — (mejora operativa) |
 
 ---
 
@@ -166,3 +167,21 @@ explicar en voz alta y sin leer.
 
 Insumo listo: `docs/specs/` guarda el porqué de cada decisión en el momento en que se
 tomó, que es más confiable que reconstruirlo de memoria seis semanas después.
+
+
+---
+
+## T-009 — Duplicar semana anterior en el editor de menú
+
+El menú nuevo sale cada semana entre miércoles y jueves y se captura a mano en
+`/admin/menu`. No existe importación desde Excel ni ninguna fuente externa, y **no
+conviene agregarla**: armar el menú es una decisión del negocio, no un dato que ya viva
+en otro sistema. Una importación solo se justifica cuando el dato existe en otro lado;
+aquí sería teclear lo mismo en Excel y sumar una fuente de errores.
+
+Lo que sí se repite semana a semana son los nombres de platillos, sus precios y sobre
+todo los grupos de opciones. Un botón **"duplicar semana anterior"** que copie la
+estructura completa con fechas recorridas quita la mayor parte del tecleo con una
+fracción de la complejidad de una importación.
+
+Prioridad: después de las fases evaluadas. Es comodidad operativa, no un entregable.
