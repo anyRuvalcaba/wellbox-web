@@ -198,6 +198,25 @@ deuda técnica.
 **Lección:** cerrar permisos rompe código que dependía de estar abierto. Hay que revisar
 qué más tocaba esa puerta.
 
+### El carrito perdía el menú por el orden de los efectos
+
+`MenuBrowser` (hijo) fija el menú en un efecto. `CartProvider` (padre) hidrata el
+carrito desde `sessionStorage` en el suyo. **En React los efectos de los hijos corren
+antes que los del padre**, así que la hidratación reemplazaba el estado completo y
+borraba el menú que el hijo acababa de fijar.
+
+Resultado: carrito con platillos pero sin menú, y el checkout rechazando el pedido con
+"tu sesión expiró" — un mensaje que además apuntaba al lugar equivocado. Era un bug
+anterior a este trabajo y solo se manifestaba en la primera visita, cuando
+`sessionStorage` está vacío.
+
+Arreglo: la hidratación fusiona en vez de reemplazar, conservando el menú que ya
+estuviera fijado, y descarta los platillos guardados si son de otra semana.
+
+**Lección:** el orden de los efectos entre padre e hijo no es intuitivo, y un
+`setState` que reemplaza el estado completo desde un efecto puede pisar lo que otro
+componente acaba de escribir.
+
 ### Una prueba que se comparaba consigo misma
 
 Las etiquetas de día llegaron a Supabase con la `é` convertida en dos caracteres:

@@ -4,7 +4,7 @@ import type { Database } from "@/lib/database.types";
 
 // Rutas que exigen sesión. Ver el menú NO la exige: es el escaparate del negocio y
 // cerrarlo espantaría clientas. Lo que exige cuenta es avanzar en el pedido.
-const RUTAS_PRIVADAS = ["/pedido/resumen", "/pedido/pago", "/pedido/mis-pedidos", "/pedido/perfil"];
+const RUTAS_PRIVADAS = ["/pedido/resumen", "/pedido/pago", "/pedido/mis-pedidos", "/pedido/perfil", "/pedido/confirmacion"];
 const RUTAS_DE_AUTH = ["/login", "/registro"];
 
 // Refresca la cookie de sesión de Supabase y hace el chequeo optimista de rutas.
