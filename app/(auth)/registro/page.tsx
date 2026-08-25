@@ -20,8 +20,9 @@ export default function RegistroPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (form.password.length < 8) {
-      setError("La contraseña debe tener al menos 8 caracteres.");
+    const problema = revisarPassword(form.password);
+    if (problema) {
+      setError(problema);
       return;
     }
     setLoading(true);
@@ -41,10 +42,16 @@ export default function RegistroPage() {
     });
 
     if (signUpError) {
+      const mensaje = signUpError.message.toLowerCase();
       setError(
-        signUpError.message.toLowerCase().includes("already")
+        mensaje.includes("already")
           ? "Ese correo ya tiene una cuenta. Inicia sesión."
-          : "No se pudo crear la cuenta. Intenta de nuevo."
+          : mensaje.includes("password")
+            // Supabase aplica su propia política de contraseñas. Si la rechaza, hay que
+            // decir por qué: un "no se pudo" genérico deja a la clienta atorada sin
+            // saber qué corregir.
+            ? "Esa contraseña no cumple los requisitos: mínimo 8 caracteres, con mayúscula, minúscula y número."
+            : "No se pudo crear la cuenta. Intenta de nuevo."
       );
       setLoading(false);
       return;
@@ -93,7 +100,7 @@ export default function RegistroPage() {
         value={form.password}
         onChange={update("password")}
         autoComplete="new-password"
-        hint="Mínimo 8 caracteres"
+        hint="Mínimo 8 caracteres, con mayúscula, minúscula y número"
       />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -110,6 +117,18 @@ export default function RegistroPage() {
       </p>
     </form>
   );
+}
+
+// Refleja la política configurada en Supabase (Authentication → Providers → Email).
+// Esto es cortesía de interfaz para avisar antes de mandar el formulario; el control
+// real lo aplica Supabase en el servidor. Si algún día cambia allá, hay que cambiarlo
+// aquí también — de lo contrario la clienta ve un error que no anticipamos.
+function revisarPassword(password: string): string | null {
+  if (password.length < 8) return "La contraseña debe tener al menos 8 caracteres.";
+  if (!/[a-z]/.test(password)) return "La contraseña debe incluir al menos una minúscula.";
+  if (!/[A-Z]/.test(password)) return "La contraseña debe incluir al menos una mayúscula.";
+  if (!/[0-9]/.test(password)) return "La contraseña debe incluir al menos un número.";
+  return null;
 }
 
 function Field({

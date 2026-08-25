@@ -164,3 +164,18 @@ begin
   end if;
   raise notice 'ANON OK — sin identidad no se puede tocar profiles';
 end $$;
+
+-- ── Las funciones security definer no son llamables por anon vía la API REST ──
+do $$
+declare
+  fn text;
+begin
+  foreach fn in array array['is_admin()', 'delete_incomplete_order(uuid)',
+                            'handle_new_user()', 'protect_role()']
+  loop
+    if has_function_privilege('anon', 'public.' || fn, 'EXECUTE') then
+      raise exception 'PERMISOS FALLA: anon puede ejecutar public.% vía /rest/v1/rpc', fn;
+    end if;
+  end loop;
+  raise notice 'PERMISOS OK — ninguna función security definer es llamable sin sesión';
+end $$;

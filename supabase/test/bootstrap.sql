@@ -33,6 +33,12 @@ begin
 end
 $$;
 
+-- Supabase concede EXECUTE a anon/authenticated automáticamente a toda función nueva
+-- del esquema public. Eso hace que `revoke ... from public` NO baste: hay que revocar
+-- del rol por su nombre. Sin esta línea el entorno local no reproduce ese detalle y una
+-- prueba de permisos daría un falso verde.
+alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
+
 create schema if not exists auth;
 create schema if not exists storage;
 
