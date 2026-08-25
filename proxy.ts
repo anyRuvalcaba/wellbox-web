@@ -11,6 +11,7 @@ export const config = {
     "/pedido/resumen",
     "/pedido/pago",
     "/pedido/mis-pedidos/:path*",
+    "/pedido/perfil",
     "/login",
     "/registro",
   ],

@@ -175,3 +175,89 @@ begin
   end if;
   raise notice 'CA-8 OK — nadie lee, modifica ni borra los métodos de pago de otra persona';
 end $$;
+
+-- ── Los puntos activos se leen sin sesión; los inactivos no ────────────────
+insert into delivery_locations (name, address, is_active, position)
+values ('Punto Cerrado', 'Ya no operamos aquí', false, 99);
+
+do $$
+declare
+  visibles int;
+begin
+  execute 'set local role anon';
+  select count(*) into visibles from delivery_locations;
+  execute 'reset role';
+
+  if visibles <> 3 then
+    raise exception 'PUNTOS ANON FALLA: sin sesión se ven % puntos, deberían ser los 3 activos', visibles;
+  end if;
+  raise notice 'PUNTOS ANON OK — el registro lista los puntos activos, y los inactivos quedan ocultos';
+end $$;
+
+-- ── Pero nadie sin rol admin los puede modificar ───────────────────────────
+do $$
+declare
+  nombre_original text;
+begin
+  select name into nombre_original from delivery_locations order by position limit 1;
+
+  perform set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', true);
+  execute 'set local role authenticated';
+  update delivery_locations set name = 'Secuestrado' where position = 0;
+  execute 'reset role';
+
+  if (select name from delivery_locations where position = 0) <> nombre_original then
+    raise exception 'PUNTOS FALLA: una clienta modificó un punto de entrega';
+  end if;
+  raise notice 'PUNTOS ESCRITURA OK — solo un admin puede editar los puntos de entrega';
+end $$;
+
+-- ── Cambiar el predeterminado es atómico y solo sobre lo propio ────────────
+do $$
+declare
+  tarjeta uuid;
+  efectivo uuid;
+begin
+  select id into tarjeta from payment_methods
+    where user_id = '11111111-1111-1111-1111-111111111111' and type = 'card';
+
+  insert into payment_methods (user_id, type, label)
+  values ('11111111-1111-1111-1111-111111111111', 'cash', 'Efectivo')
+  returning id into efectivo;
+
+  perform set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', true);
+  perform public.set_default_payment_method(efectivo);
+
+  if (select count(*) from payment_methods
+      where user_id = '11111111-1111-1111-1111-111111111111' and is_default) <> 1 then
+    raise exception 'DEFAULT FALLA: quedó más de un predeterminado, o ninguno';
+  end if;
+  if not (select is_default from payment_methods where id = efectivo) then
+    raise exception 'DEFAULT FALLA: el nuevo método no quedó como predeterminado';
+  end if;
+  if (select is_default from payment_methods where id = tarjeta) then
+    raise exception 'DEFAULT FALLA: el método anterior conservó el predeterminado';
+  end if;
+  raise notice 'CAMBIO DEFAULT OK — cambiar predeterminado deja exactamente uno';
+end $$;
+
+do $$
+declare
+  ajeno uuid;
+  bloqueado boolean := false;
+begin
+  select id into ajeno from payment_methods
+    where user_id = '11111111-1111-1111-1111-111111111111' limit 1;
+
+  begin
+    perform set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222"}', true);
+    perform public.set_default_payment_method(ajeno);
+  exception when insufficient_privilege then
+    bloqueado := true;
+  end;
+
+  if not bloqueado then
+    raise exception 'DEFAULT FALLA: Beto cambió el predeterminado de Ana';
+  end if;
+  raise notice 'DEFAULT AJENO OK — no se puede tocar el predeterminado de otra persona';
+end $$;
