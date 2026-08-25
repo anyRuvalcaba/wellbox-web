@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { formatMXN } from "@/lib/format";
 import { TEXT_LINK } from "@/lib/ui";
+import { verificarPagoDelPedido } from "@/lib/stripe/verificar";
 
 export const dynamic = "force-dynamic";
 
@@ -15,22 +16,37 @@ export default async function ConfirmacionPage({
   const { id } = await searchParams;
   const supabase = await createClient();
 
+  // Antes de mostrar nada se le pregunta a Stripe si el cobro ocurrió. Si la clienta
+  // llegó aquí después de autenticarse con su banco (3D Secure), este es el momento en
+  // que el pedido pasa a 'paid'. La política de orders limita todo esto al pedido
+  // propio.
+  if (id) {
+    await verificarPagoDelPedido(supabase, id);
+  }
+
   // La política de orders limita esto al pedido propio: con el id de otra persona no
   // devuelve nada.
   const { data: pedido } = id
     ? await supabase
         .from("orders")
-        .select("id, total, delivery_location_name, payment_method_label, transfer_proof_url, payment_methods(type)")
+        .select("id, total, payment_status, payment_error, delivery_location_name, payment_method_label, payment_methods(type)")
         .eq("id", id)
         .maybeSingle()
     : { data: null };
 
   const tipoPago = (pedido?.payment_methods as unknown as { type: string } | null)?.type;
+  // Sin método guardado y con estado de cobro, fue tarjeta: las tarjetas no viven en
+  // payment_methods.
+  const conTarjeta = !tipoPago;
+  const pagado = pedido?.payment_status === "paid";
+  const fallo = pedido?.payment_status === "failed";
 
   return (
     <div className="text-center py-12 flex flex-col items-center gap-4">
-      <div className="text-5xl">{tipoPago === "transfer" ? "⏳" : "✅"}</div>
-      <h1 className="font-display text-3xl text-olive-dark">¡Pedido registrado!</h1>
+      <div className="text-5xl">{fallo ? "⚠️" : tipoPago === "transfer" ? "⏳" : "✅"}</div>
+      <h1 className="font-display text-3xl text-olive-dark">
+        {fallo ? "Tu pago no se completó" : "¡Pedido registrado!"}
+      </h1>
 
       {pedido ? (
         <>
@@ -59,12 +75,21 @@ export default async function ConfirmacionPage({
                 Recibimos tu pago <span className="font-semibold">en efectivo</span> cuando
                 entreguemos tu pedido. Te recomendamos llevar el monto exacto.
               </>
+            ) : conTarjeta && pagado ? (
+              <>
+                <span className="font-semibold text-olive-dark">Tu pago se procesó</span>. Te
+                confirmamos por WhatsApp antes de la entrega.
+              </>
+            ) : conTarjeta && fallo ? (
+              <>
+                {pedido.payment_error ?? "Tu tarjeta fue rechazada."}{" "}
+                <span className="font-semibold">No se te cobró nada.</span> Puedes intentar
+                con otra tarjeta desde el menú.
+              </>
             ) : (
               <>
-                Tu pedido quedó con{" "}
-                <span className="font-semibold text-rust">pago pendiente</span>. El cobro en
-                línea todavía no está activo, así que te contactamos por WhatsApp para
-                completarlo. <span className="font-semibold">Aún no se te ha cobrado.</span>
+                Tu pago está <span className="font-semibold text-rust">en proceso</span>. En
+                cuanto se confirme te avisamos por WhatsApp.
               </>
             )}
           </p>

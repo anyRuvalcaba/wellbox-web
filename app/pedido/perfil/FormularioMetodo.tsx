@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { MARCAS, type MarcaTarjeta, type TipoPago } from "@/lib/pagos";
+import type { TipoPago } from "@/lib/pagos";
 import { BTN_PRIMARY, BTN_SECONDARY } from "@/lib/ui";
 
-// Se usa igual en el perfil y en el checkout: la clienta puede agregar una tarjeta sin
-// salirse de donde está.
+// Solo efectivo y transferencia. Las tarjetas se agregan desde el checkout, dentro del
+// Payment Element de Stripe: ahí el número se captura en un iframe de Stripe y nunca
+// pasa por el servidor de WellBox.
 export default function FormularioMetodo({
   userId,
   onListo,
@@ -18,21 +19,13 @@ export default function FormularioMetodo({
   onCancelar: () => void;
   primerMetodo: boolean;
 }) {
-  const [tipo, setTipo] = useState<TipoPago>("card");
-  const [marca, setMarca] = useState<MarcaTarjeta>("visa");
-  const [ultimos4, setUltimos4] = useState("");
+  const [tipo, setTipo] = useState<TipoPago>("transfer");
   const [etiqueta, setEtiqueta] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
-
-    if (tipo === "card" && !/^[0-9]{4}$/.test(ultimos4)) {
-      setError("Escribe los últimos 4 dígitos de tu tarjeta.");
-      return;
-    }
-
     setGuardando(true);
     setError(null);
 
@@ -43,10 +36,8 @@ export default function FormularioMetodo({
         user_id: userId,
         type: tipo,
         label: etiqueta.trim() || null,
-        card_brand: tipo === "card" ? marca : null,
-        card_last4: tipo === "card" ? ultimos4 : null,
-        // El primero queda predeterminado solo: si no, la clienta tendría que dar un
-        // paso extra para algo que es obvio.
+        // El primero queda predeterminado solo: pedirle un paso extra para algo obvio
+        // solo agrega fricción.
         is_default: primerMetodo,
       })
       .select("id")
@@ -55,7 +46,7 @@ export default function FormularioMetodo({
     setGuardando(false);
 
     if (insertError || !data) {
-      setError("No se pudo guardar el método de pago.");
+      setError("No se pudo guardar la forma de pago.");
       return;
     }
 
@@ -74,68 +65,28 @@ export default function FormularioMetodo({
           onChange={(e) => setTipo(e.target.value as TipoPago)}
           className="w-full rounded-lg border border-peach px-3 py-2 bg-white"
         >
-          <option value="card">Tarjeta de crédito o débito</option>
           <option value="transfer">Transferencia bancaria</option>
           <option value="cash">Efectivo</option>
         </select>
       </div>
 
-      {tipo === "card" && (
-        <>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <label htmlFor="marca" className="text-sm font-semibold block mb-1">
-                Marca
-              </label>
-              <select
-                id="marca"
-                value={marca}
-                onChange={(e) => setMarca(e.target.value as MarcaTarjeta)}
-                className="w-full rounded-lg border border-peach px-3 py-2 bg-white"
-              >
-                {MARCAS.map((m) => (
-                  <option key={m.valor} value={m.valor}>
-                    {m.etiqueta}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="w-32">
-              <label htmlFor="ultimos4" className="text-sm font-semibold block mb-1">
-                Últimos 4
-              </label>
-              <input
-                id="ultimos4"
-                inputMode="numeric"
-                maxLength={4}
-                value={ultimos4}
-                onChange={(e) => setUltimos4(e.target.value.replace(/[^0-9]/g, ""))}
-                placeholder="4242"
-                className="w-full rounded-lg border border-peach px-3 py-2"
-              />
-            </div>
-          </div>
-
-          {/* Explicarlo evita que parezca que se nos olvidó pedir la tarjeta completa. */}
-          <p className="text-xs text-brown/60 bg-cream-dark/40 rounded-lg px-3 py-2">
-            Solo te pedimos los últimos 4 dígitos, para que reconozcas cuál tarjeta es. No
-            guardamos el número completo ni el código de seguridad.
-          </p>
-        </>
-      )}
-
       <div>
         <label htmlFor="etiqueta" className="text-sm font-semibold block mb-1">
-          Nombre para identificarlo <span className="font-normal text-brown/50">(opcional)</span>
+          Nombre para identificarla <span className="font-normal text-brown/50">(opcional)</span>
         </label>
         <input
           id="etiqueta"
           value={etiqueta}
           onChange={(e) => setEtiqueta(e.target.value)}
-          placeholder="Mi BBVA, Tarjeta del trabajo..."
+          placeholder="Mi BBVA, Efectivo..."
           className="w-full rounded-lg border border-peach px-3 py-2"
         />
       </div>
+
+      <p className="text-xs text-brown/60 bg-cream-dark/40 rounded-lg px-3 py-2">
+        ¿Vas a pagar con tarjeta? No hace falta guardarla aquí: la capturas al momento de
+        pagar y queda guardada de forma segura para tus próximos pedidos.
+      </p>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

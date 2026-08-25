@@ -6,7 +6,8 @@ import Link from "next/link";
 import { useCart } from "../cart-context";
 import { createClient } from "@/lib/supabase/client";
 import { formatMXN } from "@/lib/format";
-import { describirMetodo, ETIQUETA_TIPO, type MetodoPago } from "@/lib/pagos";
+import { describirMetodo, ETIQUETA_TIPO, PAGO_CON_TARJETA, type MetodoPago } from "@/lib/pagos";
+import PagoTarjeta from "./PagoTarjeta";
 import { BTN_PRIMARY, TEXT_LINK } from "@/lib/ui";
 import FormularioMetodo from "../perfil/FormularioMetodo";
 
@@ -23,13 +24,21 @@ export default function PagoForm({
 }) {
   const cart = useCart();
   const router = useRouter();
-  const [metodoId, setMetodoId] = useState(metodos.find((m) => m.isDefault)?.id ?? metodos[0]?.id ?? "");
+  // Tarjeta viene preseleccionada: es la forma que cobra al momento, que es lo que el
+  // negocio prefiere.
+  const [metodoId, setMetodoId] = useState<string>(PAGO_CON_TARJETA);
+  const [pagoTarjeta, setPagoTarjeta] = useState<{
+    clientSecret: string;
+    customerSessionClientSecret: string;
+    orderId: string;
+  } | null>(null);
   const [agregando, setAgregando] = useState(false);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const metodo = metodos.find((m) => m.id === metodoId) ?? null;
+  const esTarjeta = metodoId === PAGO_CON_TARJETA;
   const esTransferencia = metodo?.type === "transfer";
 
   if (cart.items.length === 0 || !cart.customer.name) {
@@ -113,6 +122,19 @@ export default function PagoForm({
         return;
       }
 
+      // Con tarjeta el pedido queda creado pero sin pagar: ahora se monta el formulario
+      // de Stripe. El carrito NO se vacía todavía — si el cobro falla, la clienta no
+      // debe perder lo que armó.
+      if (json.requierePago) {
+        setPagoTarjeta({
+          clientSecret: json.clientSecret,
+          customerSessionClientSecret: json.customerSessionClientSecret,
+          orderId: json.orderId,
+        });
+        setEnviando(false);
+        return;
+      }
+
       cart.clearCart();
       router.push(`/pedido/confirmacion?id=${json.orderId}`);
     } catch {
@@ -144,13 +166,27 @@ export default function PagoForm({
           )}
         </div>
 
-        {metodos.length === 0 && !agregando && (
-          <p className="text-sm text-brown/60">
-            No tienes formas de pago guardadas. Agrega una para continuar.
-          </p>
-        )}
-
         <div className="flex flex-col gap-2">
+          {/* La tarjeta no sale de payment_methods: la administra Stripe. */}
+          <label
+            className={`flex items-center gap-3 border rounded-xl px-3 py-2 cursor-pointer ${
+              esTarjeta ? "border-olive bg-olive-light/10" : "border-peach bg-white"
+            }`}
+          >
+            <input
+              type="radio"
+              name="metodo"
+              value={PAGO_CON_TARJETA}
+              checked={esTarjeta}
+              disabled={pagoTarjeta !== null}
+              onChange={() => setMetodoId(PAGO_CON_TARJETA)}
+            />
+            <span>
+              <span className="font-semibold block">Tarjeta de crédito o débito</span>
+              <span className="text-xs text-brown/50">Se cobra al confirmar tu pedido</span>
+            </span>
+          </label>
+
           {metodos.map((m) => (
             <label
               key={m.id}
@@ -163,6 +199,7 @@ export default function PagoForm({
                 name="metodo"
                 value={m.id}
                 checked={metodoId === m.id}
+                disabled={pagoTarjeta !== null}
                 onChange={() => setMetodoId(m.id)}
               />
               <span className="min-w-0">
@@ -187,6 +224,22 @@ export default function PagoForm({
           />
         )}
       </section>
+
+      {esTarjeta && pagoTarjeta && (
+        <PagoTarjeta
+          clientSecret={pagoTarjeta.clientSecret}
+          customerSessionClientSecret={pagoTarjeta.customerSessionClientSecret}
+          orderId={pagoTarjeta.orderId}
+          total={cart.total}
+        />
+      )}
+
+      {esTarjeta && !pagoTarjeta && (
+        <p className="text-sm text-brown/70 bg-cream-dark/40 rounded-xl px-4 py-3">
+          Vas a pagar {formatMXN(cart.total)} con tarjeta al confirmar. Si ya guardaste
+          una tarjeta antes, la vas a poder elegir en el siguiente paso.
+        </p>
+      )}
 
       {/* Cada forma de pago necesita decir qué pasa después. Sin esto, la clienta se
           queda con la duda de si ya pagó o no. */}
@@ -237,24 +290,20 @@ export default function PagoForm({
           no hay pasarela conectada. Decirlo de frente es mejor que dar a entender que el
           cobro ya ocurrió: en un checkout, dejar a la clienta con la duda de si le
           cobraron o no es el peor resultado posible. Ver T-011 en el backlog. */}
-      {metodo?.type === "card" && (
-        <p className="text-sm text-brown/70 bg-peach-light/60 rounded-xl px-4 py-3">
-          Tu pedido queda registrado con <span className="font-semibold">pago pendiente</span>.
-          El cobro en línea todavía no está activo, así que te contactamos por WhatsApp
-          para completarlo. <span className="font-semibold">Aún no se te cobra nada.</span>
-        </p>
-      )}
-
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <button
-        type="button"
-        onClick={confirmar}
-        disabled={enviando || !metodoId}
-        className={`${BTN_PRIMARY} w-full py-3`}
-      >
-        {enviando ? "Enviando..." : "Confirmar pedido"}
-      </button>
+      {/* Cuando el formulario de Stripe ya está montado, el botón de pagar es el suyo:
+          dos botones de confirmar en la misma pantalla es pedir un doble cobro. */}
+      {!pagoTarjeta && (
+        <button
+          type="button"
+          onClick={confirmar}
+          disabled={enviando || !metodoId}
+          className={`${BTN_PRIMARY} w-full py-3`}
+        >
+          {enviando ? "Enviando..." : esTarjeta ? "Continuar al pago" : "Confirmar pedido"}
+        </button>
+      )}
     </div>
   );
 }

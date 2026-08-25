@@ -46,8 +46,6 @@ export type Database = {
       }
       payment_methods: {
         Row: {
-          card_brand: string | null
-          card_last4: string | null
           created_at: string
           id: string
           is_default: boolean
@@ -56,8 +54,6 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          card_brand?: string | null
-          card_last4?: string | null
           created_at?: string
           id?: string
           is_default?: boolean
@@ -66,8 +62,6 @@ export type Database = {
           user_id: string
         }
         Update: {
-          card_brand?: string | null
-          card_last4?: string | null
           created_at?: string
           id?: string
           is_default?: boolean
@@ -329,6 +323,8 @@ export type Database = {
           total: number
           delivery_location_id: string | null
           delivery_location_name: string | null
+          payment_error: string | null
+          stripe_payment_intent_id: string | null
           payment_method_id: string | null
           payment_method_label: string | null
           transfer_proof_url: string | null
@@ -347,6 +343,8 @@ export type Database = {
           total?: number
           delivery_location_id?: string | null
           delivery_location_name?: string | null
+          payment_error?: string | null
+          stripe_payment_intent_id?: string | null
           payment_method_id?: string | null
           payment_method_label?: string | null
           transfer_proof_url?: string | null
@@ -365,6 +363,8 @@ export type Database = {
           total?: number
           delivery_location_id?: string | null
           delivery_location_name?: string | null
+          payment_error?: string | null
+          stripe_payment_intent_id?: string | null
           payment_method_id?: string | null
           payment_method_label?: string | null
           transfer_proof_url?: string | null
@@ -385,6 +385,7 @@ export type Database = {
           created_at: string
           delivery_location_id: string | null
           email: string | null
+          stripe_customer_id: string | null
           full_name: string | null
           id: string
           phone: string | null
@@ -396,6 +397,7 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id: string
+          stripe_customer_id?: string | null
           phone?: string | null
           role?: string
         }
@@ -407,6 +409,7 @@ export type Database = {
           id?: string
           phone?: string | null
           role?: string
+          stripe_customer_id?: string | null
         }
         Relationships: []
       }

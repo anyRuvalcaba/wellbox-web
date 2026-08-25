@@ -85,7 +85,10 @@ end $$;
 -- ── CA-7: no existe dónde guardar CVV ni número completo ───────────────────
 do $$
 declare
-  prohibidas text[] := array['cvv','card_number','cardnumber','pan','card_cvv','security_code'];
+  -- Se agregan card_brand y card_last4: desde 0010 las tarjetas las administra Stripe
+  -- y esta tabla no guarda NADA de tarjeta, ni siquiera los últimos 4.
+  prohibidas text[] := array['cvv','card_number','cardnumber','pan','card_cvv',
+                             'security_code','card_brand','card_last4'];
   col text;
 begin
   foreach col in array prohibidas loop
@@ -96,29 +99,31 @@ begin
       raise exception 'CA-7 FALLA: existe la columna payment_methods.% — dato de tarjeta que no se debe almacenar', col;
     end if;
   end loop;
-  raise notice 'CA-7 OK — no hay columna para CVV ni para el número completo de tarjeta';
+  raise notice 'CA-7 OK — payment_methods no guarda ningún dato de tarjeta';
 end $$;
 
--- ── Una tarjeta sin marca ni últimos 4 no se puede guardar ─────────────────
+-- ── Esta tabla ya no acepta tarjetas ──────────────────────────────────────
+-- Desde 0010 las tarjetas viven en Stripe. Que la base lo impida evita que alguien
+-- reintroduzca por error un camino donde WellBox guarde datos de tarjeta.
 do $$
 declare
   rechazado boolean := false;
 begin
   begin
     insert into payment_methods (user_id, type, label)
-    values ('11111111-1111-1111-1111-111111111111', 'card', 'Tarjeta sin datos');
+    values ('11111111-1111-1111-1111-111111111111', 'card', 'Tarjeta a mano');
   exception when check_violation then
     rechazado := true;
   end;
   if not rechazado then
-    raise exception 'RESTRICCIÓN FALLA: se guardó una tarjeta sin marca ni últimos 4';
+    raise exception 'CA-8 FALLA: se guardó una tarjeta en payment_methods — las administra Stripe';
   end if;
-  raise notice 'RESTRICCIÓN OK — una tarjeta exige marca y últimos cuatro dígitos';
+  raise notice 'TIPOS OK — payment_methods solo acepta efectivo y transferencia';
 end $$;
 
 -- ── Un solo método predeterminado por usuario ──────────────────────────────
-insert into payment_methods (user_id, type, label, card_brand, card_last4, is_default)
-values ('11111111-1111-1111-1111-111111111111', 'card', 'Mi BBVA', 'visa', '4242', true);
+insert into payment_methods (user_id, type, label, is_default)
+values ('11111111-1111-1111-1111-111111111111', 'transfer', 'Mi BBVA', true);
 
 do $$
 declare
@@ -147,7 +152,7 @@ declare
   etiqueta text;
 begin
   select id into tarjeta_de_ana from payment_methods
-    where user_id = '11111111-1111-1111-1111-111111111111' and type = 'card';
+    where user_id = '11111111-1111-1111-1111-111111111111' and label = 'Mi BBVA';
 
   perform set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222"}', true);
   execute 'set local role authenticated';
@@ -219,7 +224,7 @@ declare
   efectivo uuid;
 begin
   select id into tarjeta from payment_methods
-    where user_id = '11111111-1111-1111-1111-111111111111' and type = 'card';
+    where user_id = '11111111-1111-1111-1111-111111111111' and label = 'Mi BBVA';
 
   insert into payment_methods (user_id, type, label)
   values ('11111111-1111-1111-1111-111111111111', 'cash', 'Efectivo')

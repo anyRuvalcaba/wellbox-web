@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
-import type { MarcaTarjeta, MetodoPago, TipoPago } from "@/lib/pagos";
+import type { MetodoPago, TipoPago } from "@/lib/pagos";
 import PerfilForm from "./PerfilForm";
 import MetodosPago from "./MetodosPago";
 import SelectorPunto from "./SelectorPunto";
@@ -21,7 +21,7 @@ export default async function PerfilPage() {
     // Filtrar aquí también escondería un error si esa política se rompiera.
     supabase
       .from("payment_methods")
-      .select("id, type, label, card_brand, card_last4, is_default")
+      .select("id, type, label, is_default")
       .order("is_default", { ascending: false })
       .order("created_at"),
   ]);
@@ -34,8 +34,6 @@ export default async function PerfilPage() {
     id: m.id,
     type: m.type as TipoPago,
     label: m.label,
-    cardBrand: m.card_brand as MarcaTarjeta | null,
-    cardLast4: m.card_last4,
     isDefault: m.is_default,
   }));
 

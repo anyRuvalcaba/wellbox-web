@@ -17,7 +17,8 @@ Cada fase se mapea a un entregable de la evaluación técnica del curso
 | T-008 | Preparación de la defensa técnica | PENDIENTE | Justificación verbal |
 | T-009 | Duplicar semana anterior en el editor de menú | ✅ DONE | — (mejora operativa) |
 | T-010 | Identidad visual: logo y tipografía | PENDIENTE | — (detalle visual) |
-| T-011 | Pasarela de pago en línea (Stripe) | **BLOQUEA tarjeta** | Checkout completo |
+| T-011 | Pasarela de pago en línea (Stripe) | EN CURSO | Checkout completo |
+| T-012 | Resolver `npm audit` (6 altas) | PENDIENTE | Calidad del repositorio |
 
 ---
 
@@ -229,3 +230,25 @@ Pendiente de decidir con Any: si entra antes de la evaluación o si la tarjeta s
 como "registro con pago pendiente" y la pasarela queda documentada como trabajo futuro.
 Las dos son defendibles; lo que no es defendible es que el checkout diga que cobró
 cuando no cobró.
+
+
+---
+
+## T-012 — Resolver las vulnerabilidades de `npm audit`
+
+Al 2026-08-24: **6 vulnerabilidades de severidad alta**, todas en dependencias
+transitivas de Next 16.2.9.
+
+| Paquete | Problema |
+|---|---|
+| `postcss` ≤8.5.22 | XSS al serializar CSS; lectura de archivos arbitrarios vía `sourceMappingURL` |
+| `sharp` <0.35.0 | CVEs heredados de libvips |
+
+Se resuelven subiendo Next a 16.3.2 — mismo major, así que el riesgo es acotado.
+
+**No se hizo junto con T-011 a propósito:** mezclar una actualización de framework con
+una integración de pagos hace imposible saber qué rompió qué si algo falla. Va en su
+propia rama, con `npm run build`, `npm run lint` y `npm run db:verify` como red.
+
+El documento de evaluación pide correr `npm audit` y resolver lo crítico antes de la
+defensa, así que esto es entregable, no opcional.
