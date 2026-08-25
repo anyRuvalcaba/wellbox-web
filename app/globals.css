@@ -1,26 +1,26 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  --color-cream: #fbf6ec;
+  --color-cream-dark: #f1e7d4;
+  --color-olive: #6f7d49;
+  --color-olive-dark: #4f5934;
+  --color-olive-light: #aab883;
+  --color-peach: #e9c7a2;
+  --color-peach-light: #f5e6d3;
+  --color-brown: #4a3826;
+  --color-rust: #b5662f;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-poppins);
+  --font-display: var(--font-seasons);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-cream);
+  color: var(--color-brown);
+}
+
+input[type="radio"],
+input[type="checkbox"] {
+  accent-color: var(--color-olive);
 }
