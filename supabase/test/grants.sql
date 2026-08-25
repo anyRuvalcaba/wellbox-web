@@ -10,4 +10,7 @@
 grant usage on schema public, auth, storage to anon, authenticated;
 grant select, insert, update, delete on all tables in schema public to anon, authenticated;
 grant select, insert, update, delete on all tables in schema storage to anon, authenticated;
-grant execute on all functions in schema public, auth to anon, authenticated;
+-- Solo auth: en el esquema public, Postgres ya concede EXECUTE a PUBLIC por defecto al
+-- crear una función. Justamente por eso el linter de Supabase avisa, y por eso la
+-- migración 0004 revoca. Si aquí se volviera a conceder, la prueba de 0004 sería falsa.
+grant execute on all functions in schema auth to anon, authenticated;
