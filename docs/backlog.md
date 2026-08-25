@@ -14,6 +14,7 @@ Cada fase se mapea a un entregable de la evaluación técnica del curso
 | T-005 | Suite de pruebas con Vitest | PENDIENTE | `npm test` en verde |
 | T-006 | README y `npm audit` | PENDIENTE | Calidad del repositorio |
 | T-007 | Deploy a Vercel y repo público | PENDIENTE | URL pública con SSL |
+| T-008 | Preparación de la defensa técnica | PENDIENTE | Justificación verbal |
 
 ---
 
@@ -130,3 +131,38 @@ Cobertura mínima propuesta para WellBox:
 El repo de clase tiene 169 pruebas de backend y **cero de frontend**, aunque el syllabus
 del curso pide "test suite covering components and hooks". Cubrir también componentes es
 una ventaja frente a la referencia.
+
+
+---
+
+## T-007 — Riesgo: la base de datos se pausa sola
+
+Los proyectos de Supabase en plan gratuito pasan a `INACTIVE` tras varios días sin
+actividad. Al 2026-08-24 los tres proyectos de la cuenta están pausados, incluido
+`wellbox` (`zkfeuibnjfbqiwpuaifh`).
+
+Es el mismo riesgo del que advierte el documento de evaluación sobre Render, pero peor:
+Render despierta solo con una visita en ~30 segundos; **Supabase pausado no despierta
+solo** — hay que restaurarlo a mano desde el dashboard y tarda varios minutos.
+
+Mitigación: restaurar el proyecto varios días antes de la evaluación y tocarlo a diario
+hasta entonces. Verificar la URL de producción el mismo día, no solo 30 minutos antes.
+
+---
+
+## T-008 — Preparación de la defensa técnica
+
+Sesión aparte, al final del proyecto. No es documentación entregable: es práctica de
+explicar en voz alta y sin leer.
+
+- Recorrer el flujo de datos de extremo a extremo (dimensión "comprensión de la
+  arquitectura" de la rúbrica)
+- Justificar cada decisión contra su alternativa: Next.js vs. React + Express,
+  Postgres vs. MongoDB, Supabase Auth vs. JWT propio, TypeScript vs. JavaScript,
+  puntos de entrega fijos vs. direcciones libres
+- Preparar el recorrido de las pruebas: qué cubre cada una y por qué esa y no otra
+- Practicar cronometrado, 10 minutos máximo
+- Tener lista una respuesta honesta a "si lo rehicieras, ¿qué cambiarías?"
+
+Insumo listo: `docs/specs/` guarda el porqué de cada decisión en el momento en que se
+tomó, que es más confiable que reconstruirlo de memoria seis semanas después.

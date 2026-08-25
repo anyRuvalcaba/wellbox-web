@@ -4,7 +4,7 @@
 - **Tipo:** security-patch + feature
 - **Complejidad:** L
 - **Fecha:** 2026-08-24
-- **Estado:** DRAFT
+- **Estado:** IN PROGRESS
 
 ## Historia
 
@@ -182,7 +182,29 @@ verificable con una prueba directa.
 
 ## Pendientes Abiertos y Gaps Detectados
 
-> Se completa durante la implementación.
+**Bug encontrado y corregido durante la implementación — bootstrap del primer admin.**
+La primera versión de `protect_role()` revertía cualquier cambio de `role` cuando
+`is_admin()` era falso. En un contexto de servidor (migración, editor SQL, service key)
+`auth.uid()` es nulo, así que `is_admin()` devolvía falso y **el trigger se bloqueaba a
+sí mismo**: no existía forma de crear la primera cuenta admin.
+
+Corrección: el trigger solo vigila peticiones que traen identidad de usuario
+(`auth.uid() is not null`). Los contextos de servidor ya saltan RLS por definición, y
+una petición `anon` no alcanza el trigger porque la política de update sobre `profiles`
+es `to authenticated`. Se agregó la prueba `ANON OK` para verificar justamente que ese
+camino no es explotable desde el cliente.
+
+Lo detectó el entorno local de pruebas antes de tocar cualquier base real.
+
+**Pendiente de la fase de aplicación:** la cuenta admin actual del equipo queda como
+`customer` al correr la migración. Hay que promoverla a mano desde el editor SQL de
+Supabase:
+```sql
+update profiles set role = 'admin' where id = '<uuid de la cuenta>';
+```
+
+**Fuera de alcance de T-001 (va en T-002):** `profiles.delivery_location_id` y su
+trigger de inmutabilidad.
 
 ## Resultados
 

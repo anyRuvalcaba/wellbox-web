@@ -84,7 +84,14 @@ security definer
 set search_path = public
 as $$
 begin
-  if new.role is distinct from old.role and not public.is_admin() then
+  -- auth.uid() nulo significa que la petición no trae identidad de usuario: es el
+  -- servidor (migraciones, editor SQL, service key). Esos contextos ya saltan RLS por
+  -- definición, así que policiarlos aquí no agrega seguridad y sí impide crear al
+  -- primer admin. Una petición `anon` tampoco llega a este trigger: la política de
+  -- update sobre profiles es `to authenticated`, así que RLS la rechaza antes.
+  if new.role is distinct from old.role
+     and auth.uid() is not null
+     and not public.is_admin() then
     new.role := old.role;
   end if;
   return new;
