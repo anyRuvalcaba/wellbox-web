@@ -11,13 +11,7 @@ if (!process.env.STRIPE_SECRET_KEY) {
 
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// WellBox cobra en pesos mexicanos. Stripe recibe el importe en la unidad mínima de la
-// moneda, así que $155.00 son 15500 centavos.
-//
-// Se redondea con Math.round y no con parseInt: los totales salen de sumar precios que
-// Postgres devuelve como numeric, y un 154.99999 truncado cobraría un peso de menos.
-export function aCentavos(pesos: number): number {
-  return Math.round(pesos * 100);
-}
-
-export const MONEDA = "mxn";
+// aCentavos() y MONEDA viven en lib/dinero.ts: no necesitan el SDK de Stripe, y este
+// archivo revienta al importarse sin STRIPE_SECRET_KEY. Se re-exportan aquí para que
+// nada que ya los importe de este archivo tenga que cambiar.
+export { aCentavos, MONEDA } from "@/lib/dinero";

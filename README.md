@@ -79,6 +79,53 @@ npm run dev
 Abre [http://localhost:3000](http://localhost:3000) — redirige a `/pedido`. El panel admin está
 en `/admin/login`.
 
+## Pruebas
+
+Hay dos suites, con propósitos distintos — no una sustituye a la otra.
+
+### `npm test` — Vitest
+
+Pruebas unitarias y de componentes, sin dependencias externas: corren en cualquier
+máquina con `npm install`, en un par de segundos.
+
+```bash
+npm install
+npm test
+```
+
+Cubre las funciones puras de `lib/` (el corte de pedidos, el formateo de moneda y
+fechas, el redondeo a centavos para Stripe) y algún componente de React — por ejemplo
+`QuantityStepper`, que es la pieza de interfaz que evita pedir más cantidad de la que
+hay en stock.
+
+`npm run test:watch` corre en modo interactivo mientras se desarrolla;
+`npm run test:coverage` agrega un reporte de cobertura.
+
+### `npm run db:verify` — seguridad y concurrencia contra Postgres real
+
+28 verificaciones en SQL: que una clienta no pueda leer los pedidos de otra, que no
+pueda ascenderse a administradora, que el stock no se sobrevenda — incluida una prueba
+que lanza dos pedidos **simultáneos** por la última unidad de un platillo, con dos
+conexiones reales compitiendo, para comprobar que el candado de la base realmente
+funciona.
+
+Necesita PostgreSQL 17 instalado (`brew install postgresql@17`) porque reproduce el
+esquema mínimo de Supabase (`auth`, `storage`, roles) sobre un Postgres local — no existe
+para Postgres un equivalente maduro a `mongodb-memory-server` que levante una instancia
+completa embebida en el proceso de pruebas.
+
+```bash
+brew install postgresql@17
+brew services start postgresql@17
+npm run db:verify
+```
+
+⚠️ Las migraciones del repo (`supabase/migrations/`) nunca deben pasarse por el
+portapapeles del sistema (`pbcopy`) para aplicarlas a mano en el editor SQL de Supabase:
+en una terminal con `LC_CTYPE=C`, eso corrompe los acentos. Ya pasó una vez en este
+proyecto. Ábrelas en un editor de texto y copia desde ahí, o aplícalas con
+`npm run db:verify` primero para confirmar que están bien antes de tocar producción.
+
 ## Desplegar en Vercel
 
 1. Sube este repo a GitHub.
