@@ -49,6 +49,26 @@ controlado por Row Level Security en Postgres (ver `supabase/migrations/0001_ini
    quieres poder crear usuarios admin sin flujo de correo.
 6. Copia la URL y la `anon`/`publishable` key del proyecto a tu `.env.local`.
 
+## Aplicar migraciones
+
+Las migraciones de `supabase/migrations/` se aplican en orden en el SQL Editor de
+Supabase.
+
+> **No las pases por el portapapeles con `cat archivo | pbcopy`.** En una terminal con
+> `LC_CTYPE=C`, `pbcopy` interpreta los bytes UTF-8 como MacRoman y rompe los acentos:
+> `é` llega como `√©`. Ya pasó una vez, con la migración 0006, y corrompió las etiquetas
+> de días en español. Abre el archivo en el editor y copia desde ahí, o usa
+> `LC_ALL=en_US.UTF-8 pbcopy` si quieres la terminal.
+
+Antes de aplicar cualquier migración a Supabase, córrela contra la base local:
+
+```bash
+npm run db:verify
+```
+
+Eso recrea una base desechable, corre todas las migraciones en orden y verifica las
+políticas de seguridad y la duplicación de menús. Ver `supabase/test/`.
+
 ## Correr localmente
 
 ```bash
