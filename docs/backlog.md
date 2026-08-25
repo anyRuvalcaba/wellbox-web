@@ -18,7 +18,7 @@ Cada fase se mapea a un entregable de la evaluación técnica del curso
 | T-009 | Duplicar semana anterior en el editor de menú | ✅ DONE | — (mejora operativa) |
 | T-010 | Identidad visual: logo y tipografía | PENDIENTE | — (detalle visual) |
 | T-011 | Pasarela de pago en línea (Stripe) | ✅ DONE | Checkout completo |
-| T-012 | Resolver `npm audit` (3 altas, antes 6) | PENDIENTE | Calidad del repositorio |
+| T-012 | Resolver `npm audit` (3 altas, antes 6) | ✅ DONE | Calidad del repositorio |
 | T-013 | Pedidos abandonados en el checkout con tarjeta | ✅ DONE | — (higiene de datos) |
 | T-014 | Traducir estados de pago de Stripe en /pedido/mis-pedidos | PENDIENTE | — (detalle de presentación) |
 
