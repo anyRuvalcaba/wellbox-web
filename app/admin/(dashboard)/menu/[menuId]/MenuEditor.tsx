@@ -8,6 +8,7 @@ import { formatMXN, formatWeekRangeLabel } from "@/lib/format";
 import { BTN_PRIMARY, BTN_SECONDARY, CHIP_DANGER, CHIP_OLIVE_OUTLINE } from "@/lib/ui";
 import PublishButton from "../PublishButton";
 import DeleteMenuButton from "../DeleteMenuButton";
+import ReuseDishPicker from "./ReuseDishPicker";
 import type { MenuDay, MenuDish } from "@/lib/types";
 
 interface DraftGroup {
@@ -188,9 +189,16 @@ export default function MenuEditor({
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-semibold">{day.dayLabel}</h2>
               {day.dishes.length < 3 && (
-                <button onClick={() => setEditing(dishToDraft(null, day.id))} className={CHIP_OLIVE_OUTLINE}>
-                  + Agregar platillo
-                </button>
+                <div className="flex gap-2 flex-wrap justify-end">
+                  <ReuseDishPicker
+                    menuDayId={day.id}
+                    dayLabel={day.dayLabel}
+                    menuIdActual={menu.id}
+                  />
+                  <button onClick={() => setEditing(dishToDraft(null, day.id))} className={CHIP_OLIVE_OUTLINE}>
+                    + Agregar platillo
+                  </button>
+                </div>
               )}
             </div>
             <div className="flex flex-col gap-2">

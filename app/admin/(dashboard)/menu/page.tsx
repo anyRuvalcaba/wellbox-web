@@ -5,6 +5,7 @@ import { TEXT_LINK } from "@/lib/ui";
 import NewMenuForm from "./NewMenuForm";
 import PublishButton from "./PublishButton";
 import DeleteMenuButton from "./DeleteMenuButton";
+import DuplicateWeekForm from "./DuplicateWeekForm";
 import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +36,15 @@ export default async function MenuListPage() {
       <h1 className="font-display text-3xl text-olive-dark">Menú semanal</h1>
 
       <NewMenuForm />
+
+      <DuplicateWeekForm
+        semanas={(menus ?? []).map((menu) => ({
+          id: menu.id,
+          etiqueta:
+            formatWeekRangeLabel(dayDatesByMenu.get(menu.id) ?? []) ||
+            `Semana del ${menu.week_start_date}`,
+        }))}
+      />
 
       <div className="flex flex-col gap-2">
         {(menus ?? []).map((menu) => {
