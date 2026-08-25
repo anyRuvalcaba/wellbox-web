@@ -8,7 +8,7 @@ Cada fase se mapea a un entregable de la evaluación técnica del curso
 | ID | Fase | Estado | Entregable que cubre |
 |---|---|---|---|
 | T-001 | Usuarios, roles y RLS | ✅ DONE | Login y registro operativos |
-| T-002 | Perfil, punto de entrega y métodos de pago | EN CURSO | Checkout completo |
+| T-002 | Perfil, punto de entrega y métodos de pago | ✅ DONE | Checkout completo |
 | T-003 | Stock y carrito | ✅ DONE | Carrito completo |
 | T-004 | Manejo de errores y resiliencia | PENDIENTE | Rúbrica: resiliencia |
 | T-005 | Suite de pruebas con Vitest | PENDIENTE | `npm test` en verde |
@@ -17,9 +17,9 @@ Cada fase se mapea a un entregable de la evaluación técnica del curso
 | T-008 | Preparación de la defensa técnica | PENDIENTE | Justificación verbal |
 | T-009 | Duplicar semana anterior en el editor de menú | ✅ DONE | — (mejora operativa) |
 | T-010 | Identidad visual: logo y tipografía | PENDIENTE | — (detalle visual) |
-| T-011 | Pasarela de pago en línea (Stripe) | EN CURSO | Checkout completo |
+| T-011 | Pasarela de pago en línea (Stripe) | ✅ DONE | Checkout completo |
 | T-012 | Resolver `npm audit` (6 altas) | PENDIENTE | Calidad del repositorio |
-| T-013 | Pedidos abandonados en el checkout con tarjeta | PENDIENTE | — (higiene de datos) |
+| T-013 | Pedidos abandonados en el checkout con tarjeta | ✅ DONE | — (higiene de datos) |
 
 ---
 
