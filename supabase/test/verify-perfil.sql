@@ -266,3 +266,21 @@ begin
   end if;
   raise notice 'DEFAULT AJENO OK — no se puede tocar el predeterminado de otra persona';
 end $$;
+
+-- ── Los estados de pago cubren todo el ciclo del cobro ─────────────────────
+do $$
+declare
+  esperados text[] := array['pending','transfer_uploaded','confirmed','paid','failed','cancelled'];
+  estado text;
+  definicion text;
+begin
+  select pg_get_constraintdef(oid) into definicion
+  from pg_constraint where conname = 'orders_payment_status_check';
+
+  foreach estado in array esperados loop
+    if position(estado in definicion) = 0 then
+      raise exception 'ESTADOS FALLA: payment_status no admite %', estado;
+    end if;
+  end loop;
+  raise notice 'ESTADOS OK — payment_status cubre el ciclo completo del cobro';
+end $$;

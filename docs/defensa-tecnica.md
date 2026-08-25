@@ -170,6 +170,42 @@ navegador. Mismo criterio que ya se aplicaba en `POST /api/orders`, y lo contrar
 pedido. Nunca se marca por lo que diga el navegador: un cliente puede llamar a cualquier
 endpoint con cualquier cuerpo, pero no puede hacer que Stripe mienta.
 
+### Los checkouts abandonados se cancelan, no se retoman
+
+**La pregunta:** "otros e-commerce te dejan retomar un pedido pendiente, ¿por qué el tuyo
+no?"
+
+Retomar tiene sentido con un catálogo permanente: el producto sigue existiendo, al mismo
+precio, la semana que viene. En WellBox no:
+
+- Los pedidos caducan solos con el cierre de las 11pm del día anterior.
+- El menú cambia cada semana, así que un pedido de hace días apunta a platillos que ya no
+  están publicados.
+- El importe del cobro queda congelado al crearlo; retomarlo con un carrito distinto
+  obligaría a actualizar el cobro y revalidar precios y cierres.
+
+Y el caso real no es "abandoné el martes y vuelvo el viernes": es una tarjeta rechazada
+seguida de otro intento, o una recarga de página, todo en minutos. Para eso lo correcto
+no es preguntar, es que no se acumulen: al empezar un checkout con tarjeta se cancelan
+los anteriores sin pagar, en la base **y en Stripe**.
+
+Deja como máximo un pendiente vivo por clienta y por semana, sin interfaz nueva que
+explicar y sin riesgo de cobrar un importe viejo.
+
+**El detalle que hace que esto sea seguro:** antes de cancelar se le pregunta a Stripe el
+estado real del cobro. Si está `succeeded` o `processing`, no se toca — cancelar un
+pedido ya pagado sería mucho peor que dejar ruido. No basta con mirar el estado guardado,
+porque el webhook puede no haber llegado todavía.
+
+### El equipo no puede marcar un pedido como pagado
+
+En `/admin/pedidos`, los estados que vienen del cobro —pagado, rechazado, abandonado— se
+muestran pero no se editan. Solo se pueden cambiar a mano los de transferencia y
+efectivo, que son los que sí dependen de que una persona verifique algo.
+
+Dejar que alguien marcara "pagado" a mano sería permitir afirmar un cobro que nadie
+verificó, y rompería la regla de que ese estado lo decide Stripe.
+
 ### El carrito no se vacía hasta que el cobro confirma
 
 Si la tarjeta es rechazada, la clienta conserva lo que armó. Vaciar el carrito al iniciar

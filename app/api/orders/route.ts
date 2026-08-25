@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isOrderable } from "@/lib/cutoff";
 import { aCentavos, MONEDA, stripe } from "@/lib/stripe/server";
+import { cancelarCheckoutsAbandonados } from "@/lib/stripe/cancelar";
 
 interface OrderItemPayload {
   dayDate: string;
@@ -189,6 +190,11 @@ export async function POST(request: Request) {
 
   if (conTarjeta) {
     try {
+      // Antes de abrir un checkout nuevo se cierran los que quedaron a medias. Así hay
+      // como máximo un pedido sin pagar por clienta y por semana, en vez de uno por cada
+      // vez que recargó la página o le rechazaron la tarjeta.
+      await cancelarCheckoutsAbandonados(user.id, body.menuId);
+
       const clienteStripe = await obtenerClienteStripe(supabase, user.id, user.email);
       intentoTarjeta = await stripe.paymentIntents.create({
         // El importe sale del total calculado arriba contra la base, nunca del cliente.

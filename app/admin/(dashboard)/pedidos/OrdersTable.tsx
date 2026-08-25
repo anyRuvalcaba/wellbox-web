@@ -12,6 +12,9 @@ import type { OrderRow } from "./page";
 const URGENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const COLUMN_COUNT = 7;
 
+// Estados que el equipo puede poner a mano. `paid`, `failed` y `cancelled` NO están
+// aquí a propósito: los decide el cobro con Stripe, no una persona. Marcar a mano un
+// pedido como pagado sería afirmar que hubo un cobro que nadie verificó.
 const STATUS_OPTIONS: { value: string; icon: string; label: string }[] = [
   { value: "pending", icon: "✕", label: "Pendiente" },
   { value: "transfer_uploaded", icon: "⏳", label: "Recibido" },
@@ -22,6 +25,16 @@ const STATUS_COLORS: Record<string, string> = {
   pending: "bg-cream-dark text-brown",
   transfer_uploaded: "bg-peach text-brown",
   confirmed: "bg-olive text-cream",
+  paid: "bg-olive text-cream",
+  failed: "bg-red-100 text-red-700",
+  cancelled: "bg-cream-dark text-brown/50",
+};
+
+// Los estados que vienen del cobro se muestran, no se editan.
+const ESTADOS_DE_STRIPE: Record<string, { icon: string; label: string }> = {
+  paid: { icon: "✓", label: "Pagado con tarjeta" },
+  failed: { icon: "⚠", label: "Tarjeta rechazada" },
+  cancelled: { icon: "—", label: "Checkout abandonado" },
 };
 
 export default function OrdersTable({ orders }: { orders: OrderRow[] }) {
@@ -70,8 +83,11 @@ function OrderRowView({ order }: { order: OrderRow }) {
     options: i.options.map((o) => ({ chosenOptionLabel: o.choiceLabel })),
   }));
 
+  const decideStripe = status in ESTADOS_DE_STRIPE;
+
   const isUrgent =
     status !== "confirmed" &&
+    !decideStripe &&
     order.items.some((item) => {
       const msUntilCutoff = getCutoff(item.dayDate).getTime() - now;
       return msUntilCutoff > 0 && msUntilCutoff < URGENT_WINDOW_MS;
@@ -121,19 +137,30 @@ function OrderRowView({ order }: { order: OrderRow }) {
   const pagoCell = (
     <td rowSpan={rowCount} className="px-3 py-3 align-top">
       <div className="flex flex-col gap-1.5 items-start">
-        <select
-          value={status}
-          disabled={updating}
-          onChange={(e) => handleStatusChange(e.target.value)}
-          title={STATUS_OPTIONS.find((o) => o.value === status)?.label}
-          className={`text-xs font-bold rounded-full px-2 py-1 border-0 cursor-pointer ${STATUS_COLORS[status]}`}
-        >
-          {STATUS_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.icon} {opt.label}
-            </option>
-          ))}
-        </select>
+        {/* Un pedido cuyo estado lo decidió el cobro se muestra, no se edita: dejar que
+            alguien lo cambie a mano invitaría a afirmar un cobro que nadie verificó. */}
+        {decideStripe ? (
+          <span
+            className={`text-xs font-bold rounded-full px-2 py-1 ${STATUS_COLORS[status]}`}
+            title="Lo determinó el cobro con tarjeta"
+          >
+            {ESTADOS_DE_STRIPE[status].icon} {ESTADOS_DE_STRIPE[status].label}
+          </span>
+        ) : (
+          <select
+            value={status}
+            disabled={updating}
+            onChange={(e) => handleStatusChange(e.target.value)}
+            title={STATUS_OPTIONS.find((o) => o.value === status)?.label}
+            className={`text-xs font-bold rounded-full px-2 py-1 border-0 cursor-pointer ${STATUS_COLORS[status]}`}
+          >
+            {STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.icon} {opt.label}
+              </option>
+            ))}
+          </select>
+        )}
         {isUrgent && <p className="text-[11px] font-semibold text-red-600">⏰ cierra pronto</p>}
         {order.proofSignedUrl ? (
           <a href={order.proofSignedUrl} target="_blank" rel="noreferrer" className={`text-xs ${TEXT_LINK}`}>
