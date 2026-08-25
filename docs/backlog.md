@@ -10,7 +10,7 @@ Cada fase se mapea a un entregable de la evaluación técnica del curso
 | T-001 | Usuarios, roles y RLS | ✅ DONE | Login y registro operativos |
 | T-002 | Perfil, punto de entrega y métodos de pago | ✅ DONE | Checkout completo |
 | T-003 | Stock y carrito | ✅ DONE | Carrito completo |
-| T-004 | Manejo de errores y resiliencia | PENDIENTE | Rúbrica: resiliencia |
+| T-004 | Manejo de errores y resiliencia | ✅ DONE | Rúbrica: resiliencia |
 | T-005 | Suite de pruebas con Vitest | PENDIENTE | `npm test` en verde |
 | T-006 | README y `npm audit` | PENDIENTE | Calidad del repositorio |
 | T-007 | Deploy a Vercel y repo público | PENDIENTE | URL pública con SSL |
