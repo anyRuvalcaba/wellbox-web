@@ -4,7 +4,7 @@
 - **Tipo:** security-patch
 - **Complejidad:** M
 - **Fecha:** 2026-08-25
-- **Estado:** DRAFT
+- **Estado:** DONE
 
 ## Historia
 
@@ -46,13 +46,13 @@ por sentado: simulando un bypass del proxy, ¿la segunda capa sigue bloqueando?
 
 ## Criterios de Aceptación
 
-- [ ] **CA-1** — `npm audit` reporta 0 vulnerabilidades altas o críticas.
-- [ ] **CA-2** — `npm run build`, `npm run lint`, `npx tsc --noEmit` siguen limpios.
-- [ ] **CA-3** — `npm test` (43 pruebas) sigue en verde.
-- [ ] **CA-4** — `npm run db:verify` (28 verificaciones + concurrencia) sigue en verde.
-- [ ] **CA-5** — Verificado en el navegador: menú, login, admin y un pedido completo
+- [x] **CA-1** — `npm audit` reporta 0 vulnerabilidades altas o críticas.
+- [x] **CA-2** — `npm run build`, `npm run lint`, `npx tsc --noEmit` siguen limpios.
+- [x] **CA-3** — `npm test` (43 pruebas) sigue en verde.
+- [x] **CA-4** — `npm run db:verify` (28 verificaciones + concurrencia) sigue en verde.
+- [x] **CA-5** — Verificado en el navegador: menú, login, admin y un pedido completo
       siguen funcionando tras la actualización.
-- [ ] **CA-6** — Se confirma explícitamente que saltarse `proxy.ts` no basta para
+- [x] **CA-6** — Se confirma explícitamente que saltarse `proxy.ts` no basta para
       llegar a una ruta protegida: `requireAdmin()` la sigue bloqueando.
 
 ## Riesgos y Deuda Técnica
@@ -63,8 +63,31 @@ por sentado: simulando un bypass del proxy, ¿la segunda capa sigue bloqueando?
 
 ## Pendientes Abiertos y Gaps Detectados
 
-> Se completa durante la implementación.
+**CA-6, cómo se verificó sin explotar la vulnerabilidad real.** No tiene sentido (ni es
+apropiado) intentar reproducir un bypass real de `proxy.ts` para "probar" que la segunda
+capa aguanta. En su lugar se verificó la propiedad estructural que hace que el bypass no
+importe: una cuenta autenticada con rol `customer` pidió `/admin/usuarios` — una ruta
+protegida y profunda — y quedó en `/pedido`, no en `/login`. Ese es el comportamiento
+específico de `requireAdmin()` evaluando el rol, distinto del "no hay sesión → a
+`/login`" que haría el proxy. Confirma que `lib/auth.ts` hace su propia consulta real a
+Supabase (`getUser()` + `profiles.role`) sin leer ninguna señal que el proxy haya
+dejado — así que aunque la primera capa fuera saltada, la segunda no tiene forma de
+enterarse de que lo fue, y sigue decidiendo por su cuenta.
+
+**Todas las suites regresionadas tras la actualización:** `npm run build`, `npm run
+lint`, `npx tsc --noEmit`, `npm test` (43/43) y `npm run db:verify` (28/28 + concurrencia
+real) — sin cambios necesarios en ningún archivo del proyecto. El salto de versión no
+rompió nada verificable.
 
 ## Resultados
 
-> Se completa al cerrar.
+- **Fecha de cierre:** 2026-08-25
+- **Rama:** `feature/npm-audit`
+- `next` 16.2.9 → 16.3.2. `npm audit`: 3 altas → **0**.
+- Confirmado que WellBox cumple 2 de las 3 condiciones exactas del aviso de bypass de
+  middleware (App Router, Turbopack); la tercera (un solo locale en `i18n.locales`) es
+  ambigua porque el proyecto no tiene ningún `i18n` configurado — no se afirmó con
+  certeza lo que no se pudo verificar con certeza.
+- Verificado en vivo que la segunda capa de autorización (`requireAdmin()`) no depende
+  de la primera: una cuenta sin rol admin queda bloqueada por rol, no por sesión,
+  incluso pensando en el escenario donde la primera capa fallara.

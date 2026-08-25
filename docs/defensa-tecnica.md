@@ -476,6 +476,41 @@ cosmético de nombre. El comportamiento por defecto difiere, y solo se nota al c
 pruebas de verdad — otra vez el patrón de esta sesión: la prueba real encuentra cosas
 que la lectura del código no.
 
+
+---
+
+## 6g. `npm audit`: el aviso de Next.js que sí importaba
+
+**La pregunta:** "¿corriste `npm audit`? ¿qué encontraste?"
+
+Tres vulnerabilidades altas, las tres resueltas por la misma actualización de Next.js
+(16.2.9 → 16.3.2). Pero no era boilerplate de dependencias transitivas: `next` mismo
+estaba listado, con un aviso real —**GHSA-6gpp-xcg3-4w24**— de bypass de autorización en
+middleware/proxy, activo bajo tres condiciones: App Router, Turbopack, y un solo locale
+configurado.
+
+**Se verificó cuánto aplicaba, en vez de asumir.** El build de WellBox ya usa Turbopack
+por defecto (aparece en cada compilación), y usa App Router — dos de tres. La tercera no
+se pudo confirmar con certeza: el proyecto no tiene **ningún** `i18n` configurado, que no
+es lo mismo que tener exactamente uno. No se afirmó una cosa que no se pudo verificar.
+
+**Y no importaba de todas formas, por diseño previo.** El propio aviso recomienda como
+mitigación "mover la autorización a la ruta de datos del servidor en vez de depender
+solo del middleware" — que es exactamente el modelo de tres capas que ya existía desde
+T-001: `proxy.ts` es el chequeo optimista, `requireAdmin()`/`requireUser()` en
+`lib/auth.ts` es la verificación real, RLS es la que de verdad decide. Se comprobó en
+vivo, sin intentar explotar la vulnerabilidad real: una cuenta con rol `customer` pidió
+una ruta de administración profunda y quedó en `/pedido`, no en `/login` — el
+comportamiento específico de que `requireAdmin()` evalúa el rol por su cuenta, sin leer
+ninguna señal que el proxy haya dejado. Aunque la primera capa fallara, la segunda no
+tiene manera de enterarse de que falló.
+
+**Esa es la respuesta completa a "¿por qué tres capas y no solo el proxy?"**, con un CVE
+real de la semana en que se hizo el proyecto como evidencia, no como hipotético.
+
+Tras la actualización: `npm audit` en 0, y las dos suites de pruebas —43 de Vitest, 28
+de SQL con concurrencia real— siguieron en verde sin tocar un solo archivo del proyecto.
+
 ---
 
 ## 7. Puntos de entrega fijos en vez de direcciones libres
