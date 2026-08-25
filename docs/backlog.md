@@ -7,14 +7,17 @@ Cada fase se mapea a un entregable de la evaluación técnica del curso
 
 | ID | Fase | Estado | Entregable que cubre |
 |---|---|---|---|
-| T-001 | Usuarios, roles y RLS | SPEC DRAFT | Login y registro operativos |
-| T-002 | Perfil, punto de entrega y métodos de pago | PENDIENTE | Checkout completo |
+| T-001 | Usuarios, roles y RLS | ✅ DONE | Login y registro operativos |
+| T-002 | Perfil, punto de entrega y métodos de pago | EN CURSO | Checkout completo |
 | T-003 | Stock y carrito | PENDIENTE | Carrito completo |
 | T-004 | Manejo de errores y resiliencia | PENDIENTE | Rúbrica: resiliencia |
 | T-005 | Suite de pruebas con Vitest | PENDIENTE | `npm test` en verde |
 | T-006 | README y `npm audit` | PENDIENTE | Calidad del repositorio |
 | T-007 | Deploy a Vercel y repo público | PENDIENTE | URL pública con SSL |
 | T-008 | Preparación de la defensa técnica | PENDIENTE | Justificación verbal |
+| T-009 | Duplicar semana anterior en el editor de menú | ✅ DONE | — (mejora operativa) |
+| T-010 | Identidad visual: logo y tipografía | PENDIENTE | — (detalle visual) |
+| T-011 | Pasarela de pago en línea (Stripe) | **BLOQUEA tarjeta** | Checkout completo |
 
 ---
 
@@ -166,3 +169,63 @@ explicar en voz alta y sin leer.
 
 Insumo listo: `docs/specs/` guarda el porqué de cada decisión en el momento en que se
 tomó, que es más confiable que reconstruirlo de memoria seis semanas después.
+
+
+---
+
+## T-009 — Duplicar semana anterior en el editor de menú
+
+El menú nuevo sale cada semana entre miércoles y jueves y se captura a mano en
+`/admin/menu`. No existe importación desde Excel ni ninguna fuente externa, y **no
+conviene agregarla**: armar el menú es una decisión del negocio, no un dato que ya viva
+en otro sistema. Una importación solo se justifica cuando el dato existe en otro lado;
+aquí sería teclear lo mismo en Excel y sumar una fuente de errores.
+
+Lo que sí se repite semana a semana son los nombres de platillos, sus precios y sobre
+todo los grupos de opciones. Un botón **"duplicar semana anterior"** que copie la
+estructura completa con fechas recorridas quita la mayor parte del tecleo con una
+fracción de la complejidad de una importación.
+
+Prioridad: después de las fases evaluadas. Es comodidad operativa, no un entregable.
+
+
+---
+
+## T-010 — Identidad visual: logo y tipografía
+
+El logo actual (`public/logo-wellbox.png`) se ve muy pequeño en el encabezado y la
+tipografía del texto "wellBOX" no corresponde a la de la marca. Any va a pasar el
+logo correcto.
+
+Prioridad baja: no afecta ningún entregable ni criterio de la rúbrica. Se atiende
+cuando el resto esté cerrado, para no interrumpir el trabajo que sí evalúan.
+
+
+---
+
+## T-011 — Pasarela de pago en línea
+
+**El modelo de negocio exige cobrar al momento del pedido**, salvo efectivo:
+
+| Forma de pago | Cuándo se cobra | Estado |
+|---|---|---|
+| Efectivo | al entregar | ✅ funciona |
+| Transferencia | al pedir, con comprobante | ✅ funciona |
+| Tarjeta | **al pedir, en línea** | ⚠️ sin pasarela |
+
+Esto reclasifica la pasarela: no es una mejora opcional, es lo que hace que exista la
+forma de pago "tarjeta". Sin ella, la opción aparece en el checkout pero no cobra.
+
+Mientras tanto, el checkout dice de frente que el pago quedó pendiente y que **no se ha
+cobrado nada**. En un checkout, dejar a la clienta con la duda de si le cobraron es el
+peor resultado posible — el propio documento de evaluación le dedica una pregunta modelo
+completa a ese escenario.
+
+**Stripe en modo de prueba** no requiere cuenta de comercio ni trámites fiscales: llaves
+de prueba, tarjetas de prueba oficiales, y el flujo real de principio a fin. El día que
+los pendientes fiscales se resuelvan, se cambian las llaves sin tocar código.
+
+Pendiente de decidir con Any: si entra antes de la evaluación o si la tarjeta se presenta
+como "registro con pago pendiente" y la pasarela queda documentada como trabajo futuro.
+Las dos son defendibles; lo que no es defendible es que el checkout diga que cobró
+cuando no cobró.

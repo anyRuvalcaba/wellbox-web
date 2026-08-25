@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      delivery_locations: {
+        Row: {
+          address: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          position: number
+        }
+        Insert: {
+          address: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          position?: number
+        }
+        Update: {
+          address?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          position?: number
+        }
+        Relationships: []
+      }
+      payment_methods: {
+        Row: {
+          card_brand: string | null
+          card_last4: string | null
+          created_at: string
+          id: string
+          is_default: boolean
+          label: string | null
+          type: string
+          user_id: string
+        }
+        Insert: {
+          card_brand?: string | null
+          card_last4?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          label?: string | null
+          type: string
+          user_id: string
+        }
+        Update: {
+          card_brand?: string | null
+          card_last4?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          label?: string | null
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       dishes: {
         Row: {
           description: string | null
@@ -264,6 +327,10 @@ export type Database = {
           notes: string | null
           payment_status: string
           total: number
+          delivery_location_id: string | null
+          delivery_location_name: string | null
+          payment_method_id: string | null
+          payment_method_label: string | null
           transfer_proof_url: string | null
           user_id: string | null
         }
@@ -278,6 +345,10 @@ export type Database = {
           notes?: string | null
           payment_status?: string
           total?: number
+          delivery_location_id?: string | null
+          delivery_location_name?: string | null
+          payment_method_id?: string | null
+          payment_method_label?: string | null
           transfer_proof_url?: string | null
           user_id?: string | null
         }
@@ -292,6 +363,10 @@ export type Database = {
           notes?: string | null
           payment_status?: string
           total?: number
+          delivery_location_id?: string | null
+          delivery_location_name?: string | null
+          payment_method_id?: string | null
+          payment_method_label?: string | null
           transfer_proof_url?: string | null
           user_id?: string | null
         }
@@ -308,6 +383,7 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          delivery_location_id: string | null
           email: string | null
           full_name: string | null
           id: string
@@ -316,6 +392,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          delivery_location_id?: string | null
           email?: string | null
           full_name?: string | null
           id: string
@@ -324,6 +401,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          delivery_location_id?: string | null
           email?: string | null
           full_name?: string | null
           id?: string
@@ -375,6 +453,10 @@ export type Database = {
       is_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean
+      }
+      set_default_payment_method: {
+        Args: { method_id: string }
+        Returns: undefined
       }
     }
     Enums: {

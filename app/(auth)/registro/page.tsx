@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -8,18 +8,39 @@ import { BTN_PRIMARY, TEXT_LINK } from "@/lib/ui";
 
 export default function RegistroPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ fullName: "", phone: "", email: "", password: "" });
+  const [form, setForm] = useState({
+    fullName: "",
+    phone: "",
+    email: "",
+    password: "",
+    deliveryLocationId: "",
+  });
+  const [puntos, setPuntos] = useState<{ id: string; name: string }[]>([]);
+
+  // Los puntos activos se leen sin sesión: aquí todavía no hay cuenta.
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("delivery_locations")
+      .select("id, name")
+      .order("position")
+      .then(({ data }) => setPuntos(data ?? []));
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [revisaCorreo, setRevisaCorreo] = useState(false);
   const [loading, setLoading] = useState(false);
 
   function update(field: keyof typeof form) {
-    return (e: React.ChangeEvent<HTMLInputElement>) =>
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setForm((prev) => ({ ...prev, [field]: e.target.value }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!form.deliveryLocationId) {
+      setError("Elige tu punto de entrega.");
+      return;
+    }
     const problema = revisarPassword(form.password);
     if (problema) {
       setError(problema);
@@ -57,12 +78,20 @@ export default function RegistroPage() {
       return;
     }
 
-    // Si el proyecto pide confirmación por correo, signUp no devuelve sesión.
+    // Si el proyecto pide confirmación por correo, signUp no devuelve sesión. En ese
+    // caso el punto de entrega se pide al entrar, porque escribirlo exige sesión.
     if (!data.session) {
       setRevisaCorreo(true);
       setLoading(false);
       return;
     }
+
+    // El punto va después del alta y no en el metadata: es una llave foránea que hay
+    // que validar contra delivery_locations, no un texto libre.
+    await supabase
+      .from("profiles")
+      .update({ delivery_location_id: form.deliveryLocationId })
+      .eq("id", data.user!.id);
 
     router.push("/pedido");
     router.refresh();
@@ -93,6 +122,30 @@ export default function RegistroPage() {
       <Field id="fullName" label="Nombre completo" value={form.fullName} onChange={update("fullName")} autoComplete="name" />
       <Field id="phone" label="Teléfono" type="tel" value={form.phone} onChange={update("phone")} autoComplete="tel" />
       <Field id="email" label="Correo" type="email" value={form.email} onChange={update("email")} autoComplete="email" />
+
+      <div>
+        <label htmlFor="deliveryLocationId" className="text-sm font-semibold block mb-1">
+          Punto de entrega
+        </label>
+        <select
+          id="deliveryLocationId"
+          required
+          value={form.deliveryLocationId}
+          onChange={update("deliveryLocationId")}
+          className="w-full rounded-lg border border-peach px-3 py-2 bg-white"
+        >
+          <option value="">Elige dónde recibes...</option>
+          {puntos.map((punto) => (
+            <option key={punto.id} value={punto.id}>
+              {punto.name}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-brown/50 mt-1">
+          Es tu lugar de trabajo, así que queda fijo. Si cambias de sede, escríbenos y lo
+          ajustamos.
+        </p>
+      </div>
       <Field
         id="password"
         label="Contraseña"

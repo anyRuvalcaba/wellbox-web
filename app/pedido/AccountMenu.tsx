@@ -47,6 +47,14 @@ export default function AccountMenu({ email, esAdmin }: { email: string | null; 
           className="absolute right-0 mt-2 w-48 bg-white border border-peach rounded-xl shadow-lg py-1 z-20"
         >
           <Link
+            href="/pedido/perfil"
+            role="menuitem"
+            onClick={() => setAbierto(false)}
+            className="block px-4 py-2 text-sm text-brown/80 hover:bg-cream-dark/40"
+          >
+            Mi perfil
+          </Link>
+          <Link
             href="/pedido/mis-pedidos"
             role="menuitem"
             onClick={() => setAbierto(false)}

@@ -198,6 +198,25 @@ deuda técnica.
 **Lección:** cerrar permisos rompe código que dependía de estar abierto. Hay que revisar
 qué más tocaba esa puerta.
 
+### El carrito perdía el menú por el orden de los efectos
+
+`MenuBrowser` (hijo) fija el menú en un efecto. `CartProvider` (padre) hidrata el
+carrito desde `sessionStorage` en el suyo. **En React los efectos de los hijos corren
+antes que los del padre**, así que la hidratación reemplazaba el estado completo y
+borraba el menú que el hijo acababa de fijar.
+
+Resultado: carrito con platillos pero sin menú, y el checkout rechazando el pedido con
+"tu sesión expiró" — un mensaje que además apuntaba al lugar equivocado. Era un bug
+anterior a este trabajo y solo se manifestaba en la primera visita, cuando
+`sessionStorage` está vacío.
+
+Arreglo: la hidratación fusiona en vez de reemplazar, conservando el menú que ya
+estuviera fijado, y descarta los platillos guardados si son de otra semana.
+
+**Lección:** el orden de los efectos entre padre e hijo no es intuitivo, y un
+`setState` que reemplaza el estado completo desde un efecto puede pisar lo que otro
+componente acaba de escribir.
+
 ### Una prueba que se comparaba consigo misma
 
 Las etiquetas de día llegaron a Supabase con la `é` convertida en dos caracteres:
@@ -280,5 +299,12 @@ detectar tres huecos de autorización, y una suite que sí te avisa.
 - **La protección contra contraseñas filtradas requiere plan de pago.** Se identificó y
   se decidió no activarla. Sí se subió el mínimo a 8 caracteres con mayúscula, minúscula
   y dígito.
-- **El pago con tarjeta no cobra de verdad.** Registra la intención; el cobro ocurre
-  fuera de la app. Igual que el proyecto del curso, cuyo `createOrder` tampoco cobra nada.
+- **El pago con tarjeta no cobra de verdad, y eso sí es una brecha.** El modelo de
+  negocio exige cobrar al confirmar el pedido salvo en efectivo, así que para "tarjeta"
+  la pasarela no es una mejora opcional: es lo que hace que ese método exista. Hoy el
+  checkout lo dice de frente — pago pendiente, no se ha cobrado nada — y el cobro se
+  completa por WhatsApp. Registrado como T-011.
+
+  El proyecto del curso tampoco cobra nada (su `createOrder` solo guarda una referencia
+  al método), así que la brecha es la misma; la diferencia es que aquí está identificada,
+  dicha al usuario y registrada, en vez de quedar implícita.

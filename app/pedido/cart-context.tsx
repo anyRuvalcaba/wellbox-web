@@ -76,16 +76,29 @@ export function CartProvider({
 
   useEffect(() => {
     const inicial = readInitialState();
-    // Pre-llena con los datos de la cuenta, pero lo que la clienta ya escribió para
-    // este pedido manda: puede estar pidiendo a nombre de alguien más.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration from sessionStorage, not derivable during render
-    setState({
-      ...inicial,
-      customer: {
-        ...inicial.customer,
-        name: inicial.customer.name || nombreCuenta,
-        phone: inicial.customer.phone || telefonoCuenta,
-      },
+    setState((prev) => {
+      // Los efectos de los componentes hijos corren ANTES que los del padre, así que
+      // MenuBrowser ya pudo haber fijado el menú cuando llega esta hidratación.
+      // Reemplazar el estado completo lo borraba, y el carrito quedaba con platillos
+      // pero sin menú — el checkout lo rechazaba diciendo "tu sesión expiró".
+      const menuId = prev.menuId ?? inicial.menuId;
+
+      // Los platillos guardados solo sirven si son de este mismo menú. Si la semana
+      // cambió, se descartan: sus platillos ya no existen.
+      const itemsSonDeEsteMenu = inicial.menuId !== null && inicial.menuId === menuId;
+
+      return {
+        menuId,
+        items: itemsSonDeEsteMenu ? inicial.items : prev.items,
+        // Pre-llena con los datos de la cuenta, pero lo que la clienta ya escribió para
+        // este pedido manda: puede estar pidiendo a nombre de alguien más.
+        customer: {
+          ...inicial.customer,
+          name: inicial.customer.name || nombreCuenta,
+          phone: inicial.customer.phone || telefonoCuenta,
+        },
+      };
     });
     setHydrated(true);
   }, [nombreCuenta, telefonoCuenta]);

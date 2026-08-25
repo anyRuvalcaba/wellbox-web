@@ -4,7 +4,7 @@
 - **Tipo:** security-patch + feature
 - **Complejidad:** L
 - **Fecha:** 2026-08-24
-- **Estado:** IN PROGRESS
+- **Estado:** DONE
 
 ## Historia
 
@@ -253,12 +253,19 @@ La consulta de `/pedido/mis-pedidos` no filtra por usuario: el aislamiento lo ap
 únicamente la política RLS. Que devuelva 0 con 3 pedidos presentes demuestra que la
 política está haciendo el trabajo.
 
-### CA-10 — verificado solo a nivel estructura
+### CA-10 — verificado (2026-08-24, cierre)
 
-Las políticas de Storage existen y están acotadas al dueño del objeto. **No se probó una
-subida real** porque el único menú publicado es del 6 al 10 de julio de 2026, ya pasado
-su cierre, así que no se puede completar un pedido ni subir comprobante. Queda como
-pendiente en cuanto se cargue un menú con fechas vigentes.
+Con la semana del 31 de agosto publicada se completó un pedido real con transferencia y
+subida de comprobante. Resultado contra la base de producción:
+
+- El objeto quedó en `payment-proofs` con `owner` = la clienta que lo subió.
+- El pedido pasó a `transfer_uploaded` y quedó ligado al archivo.
+- **Aislamiento:** simulando cada sesión, la clienta ve 1 comprobante (el suyo) de 3 que
+  existen en el bucket; la administradora los ve todos.
+
+Los dos comprobantes anteriores tienen `owner` nulo: se subieron cuando pedir no exigía
+cuenta. Solo la administradora puede verlos, que es el comportamiento correcto para un
+archivo sin dueño.
 
 ### Deuda técnica generada
 
