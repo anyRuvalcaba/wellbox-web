@@ -17,7 +17,27 @@ interface OrderPayload {
     notes: string;
   };
   items: OrderItemPayload[];
+  paymentMethodId: string;
   transferProofPath: string;
+}
+
+// Mismo criterio que lib/pagos.ts, pero del lado del servidor: la etiqueta que se
+// guarda en el pedido no puede depender de lo que mande el cliente.
+function etiquetaMetodo(metodo: {
+  type: string;
+  label: string | null;
+  card_brand: string | null;
+  card_last4: string | null;
+}): string {
+  if (metodo.label?.trim()) {
+    return metodo.card_last4
+      ? `${metodo.label.trim()} (···· ${metodo.card_last4})`
+      : metodo.label.trim();
+  }
+  if (metodo.type === "card" && metodo.card_brand && metodo.card_last4) {
+    return `${metodo.card_brand} ···· ${metodo.card_last4}`;
+  }
+  return metodo.type === "cash" ? "Efectivo" : "Transferencia";
 }
 
 export async function POST(request: Request) {
@@ -45,6 +65,46 @@ export async function POST(request: Request) {
   }
   if (!body.items || body.items.length === 0) {
     return NextResponse.json({ error: "El pedido no tiene platillos." }, { status: 400 });
+  }
+  if (!body.paymentMethodId) {
+    return NextResponse.json({ error: "Elige una forma de pago." }, { status: 400 });
+  }
+
+  // No se filtra por user_id a propósito: la política de payment_methods ya limita la
+  // lectura a los propios. Si el id fuera de otra persona, esto devuelve vacío.
+  const { data: metodo } = await supabase
+    .from("payment_methods")
+    .select("id, type, label, card_brand, card_last4")
+    .eq("id", body.paymentMethodId)
+    .maybeSingle();
+
+  if (!metodo) {
+    return NextResponse.json({ error: "Esa forma de pago no está disponible." }, { status: 400 });
+  }
+
+  // El comprobante solo tiene sentido si se paga por transferencia.
+  if (metodo.type === "transfer" && !body.transferProofPath) {
+    return NextResponse.json(
+      { error: "Sube tu comprobante de transferencia." },
+      { status: 400 }
+    );
+  }
+
+  // El punto de entrega sale del perfil, no del cliente: es un dato que la clienta no
+  // puede cambiar por su cuenta, así que tampoco debería poder mandarlo en el pedido.
+  const { data: perfil } = await supabase
+    .from("profiles")
+    .select("delivery_location_id, delivery_locations(name)")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const punto = perfil?.delivery_locations as unknown as { name: string } | null;
+
+  if (!perfil?.delivery_location_id || !punto) {
+    return NextResponse.json(
+      { error: "Antes de pedir, elige tu punto de entrega en tu perfil." },
+      { status: 400 }
+    );
   }
 
   const dishIds = body.items.map((i) => i.dishId);
@@ -134,10 +194,18 @@ export async function POST(request: Request) {
       delivery_address: null,
       notes: body.customer.notes?.trim() || null,
       total,
-      payment_status: body.transferProofPath ? "transfer_uploaded" : "pending",
+      payment_status:
+        metodo.type === "transfer" && body.transferProofPath ? "transfer_uploaded" : "pending",
       transfer_proof_url: body.transferProofPath || null,
       menu_id: body.menuId,
       user_id: user.id,
+      delivery_location_id: perfil.delivery_location_id,
+      // Copias, no solo referencias: si un admin mueve a la clienta de punto o ella
+      // borra la tarjeta, este pedido debe seguir diciendo dónde se entregó y cómo se
+      // pagó realmente.
+      delivery_location_name: punto.name,
+      payment_method_id: metodo.id,
+      payment_method_label: etiquetaMetodo(metodo),
     })
     .select("id")
     .single();

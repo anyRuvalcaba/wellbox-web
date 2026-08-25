@@ -15,7 +15,8 @@ Cada fase se mapea a un entregable de la evaluación técnica del curso
 | T-006 | README y `npm audit` | PENDIENTE | Calidad del repositorio |
 | T-007 | Deploy a Vercel y repo público | PENDIENTE | URL pública con SSL |
 | T-008 | Preparación de la defensa técnica | PENDIENTE | Justificación verbal |
-| T-009 | Duplicar semana anterior en el editor de menú | PENDIENTE | — (mejora operativa) |
+| T-009 | Duplicar semana anterior en el editor de menú | ✅ DONE | — (mejora operativa) |
+| T-010 | Identidad visual: logo y tipografía | PENDIENTE | — (detalle visual) |
 
 ---
 
@@ -185,3 +186,15 @@ estructura completa con fechas recorridas quita la mayor parte del tecleo con un
 fracción de la complejidad de una importación.
 
 Prioridad: después de las fases evaluadas. Es comodidad operativa, no un entregable.
+
+
+---
+
+## T-010 — Identidad visual: logo y tipografía
+
+El logo actual (`public/logo-wellbox.png`) se ve muy pequeño en el encabezado y la
+tipografía del texto "wellBOX" no corresponde a la de la marca. Any va a pasar el
+logo correcto.
+
+Prioridad baja: no afecta ningún entregable ni criterio de la rúbrica. Se atiende
+cuando el resto esté cerrado, para no interrumpir el trabajo que sí evalúan.
