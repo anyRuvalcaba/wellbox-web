@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
+import { esFalloDeConexion } from "@/lib/db-error";
+import EstadoSinConexion from "@/app/EstadoSinConexion";
 import { formatMXN, formatWeekRangeLabel } from "@/lib/format";
 import PuntoEditor from "./PuntoEditor";
 
@@ -9,10 +11,12 @@ export default async function EntregasPage() {
   await requireAdmin();
   const supabase = await createClient();
 
-  const { data: puntos } = await supabase
+  const { data: puntos, error: puntosError } = await supabase
     .from("delivery_locations")
     .select("id, name, address, notes, is_active, position")
     .order("position");
+
+  if (esFalloDeConexion(puntosError)) return <EstadoSinConexion contexto="admin" />;
 
   // Clientas asociadas a cada punto.
   const { data: perfiles } = await supabase

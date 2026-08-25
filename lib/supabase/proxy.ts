@@ -39,6 +39,21 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // getUser() verifica el token contra Supabase — necesita red. Si Supabase no
+  // responde, esto falla igual que "no hay sesión", y sin este chequeo el proxy
+  // expulsaría al login a cualquiera, aunque sí tuviera sesión y solo se tratara de una
+  // caída pasajera. getSession() no necesita red: solo lee y decodifica la cookie. Si
+  // hay una cookie con forma de sesión pero getUser() no pudo confirmarla, no se sabe
+  // si expiró o si fue la red — y en la duda, no se expulsa aquí. La decisión real
+  // sigue en lib/auth.ts (la segunda capa), que si también falla puede mostrar un error de
+  // conexión en vez de un silencioso salto al login.
+  let noSePudoVerificar = false;
+  if (!user) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    noSePudoVerificar = !!session;
+  }
   const { pathname } = request.nextUrl;
 
   // El login de admin se unificó con el de clientas. Este redirect evita romper el
@@ -50,7 +65,7 @@ export async function updateSession(request: NextRequest) {
   const esRutaAdmin = pathname.startsWith("/admin");
   const esRutaPrivada = RUTAS_PRIVADAS.some((ruta) => pathname.startsWith(ruta));
 
-  if ((esRutaAdmin || esRutaPrivada) && !user) {
+  if ((esRutaAdmin || esRutaPrivada) && !user && !noSePudoVerificar) {
     // `next` conserva a dónde iba, para devolverla ahí después de entrar y que no
     // pierda el pedido que ya venía armando.
     const url = request.nextUrl.clone();

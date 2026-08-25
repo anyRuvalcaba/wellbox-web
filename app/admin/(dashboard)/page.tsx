@@ -4,6 +4,8 @@ import { formatMXN, formatWeekRangeLabel } from "@/lib/format";
 import { BTN_PRIMARY, BTN_SECONDARY, TEXT_LINK } from "@/lib/ui";
 import BarChart from "./BarChart";
 import { requireAdmin } from "@/lib/auth";
+import { esFalloDeConexion } from "@/lib/db-error";
+import EstadoSinConexion from "@/app/EstadoSinConexion";
 
 export const dynamic = "force-dynamic";
 
@@ -18,11 +20,17 @@ export default async function AdminHomePage() {
   await requireAdmin();
   const supabase = await createClient();
 
-  const { data: publishedMenu } = await supabase
+  const { data: publishedMenu, error: publishedMenuError } = await supabase
     .from("menus")
     .select("id, week_start_date")
     .eq("is_published", true)
     .maybeSingle();
+
+  // Este dashboard encadena más de diez consultas. Si Supabase no responde, todas
+  // devuelven vacío y el panel mostraría "$0.00", "0 pedidos", "Ninguno" en cada
+  // tarjeta — para el equipo, eso se lee como una caída real del negocio, no como un
+  // problema técnico. Se corta aquí, con la primera consulta como representativa.
+  if (esFalloDeConexion(publishedMenuError)) return <EstadoSinConexion contexto="admin" />;
 
   const { data: pendingOrders, count: pendingCount } = await supabase
     .from("orders")

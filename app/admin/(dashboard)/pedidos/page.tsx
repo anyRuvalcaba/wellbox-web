@@ -3,6 +3,8 @@ import { formatWeekRangeLabel } from "@/lib/format";
 import WeekSelector from "./WeekSelector";
 import StatusFilter from "./StatusFilter";
 import { requireAdmin } from "@/lib/auth";
+import { esFalloDeConexion } from "@/lib/db-error";
+import EstadoSinConexion from "@/app/EstadoSinConexion";
 
 export const dynamic = "force-dynamic";
 
@@ -37,10 +39,12 @@ export default async function PedidosPage({
   const selectedStatus = statusParam === "pending" || statusParam === "confirmed" ? statusParam : "all";
   const supabase = await createClient();
 
-  const { data: allMenus } = await supabase
+  const { data: allMenus, error: menusError } = await supabase
     .from("menus")
     .select("id, week_start_date, is_published")
     .order("week_start_date", { ascending: false });
+
+  if (esFalloDeConexion(menusError)) return <EstadoSinConexion contexto="admin" />;
 
   const menus = allMenus ?? [];
   const publishedMenu = menus.find((m) => m.is_published);

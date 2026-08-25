@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/auth";
+import { esFalloDeConexion } from "@/lib/db-error";
+import EstadoSinConexion from "@/app/EstadoSinConexion";
 import RoleSelect from "./RoleSelect";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +15,8 @@ export default async function UsuariosPage() {
     .from("profiles")
     .select("id, email, full_name, phone, role, created_at")
     .order("created_at", { ascending: false });
+
+  if (esFalloDeConexion(error)) return <EstadoSinConexion contexto="admin" />;
 
   if (error) {
     return (

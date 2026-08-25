@@ -376,6 +376,66 @@ Contraste con la referencia: el proyecto del curso **declara** `Product.stock` p
 lo usa para filtrar búsquedas. Su `createOrder` no lo valida ni lo descuenta, así que se
 puede pedir cualquier cantidad de cualquier producto agotado.
 
+
+---
+
+## 6e. Manejo de errores: qué pasa si Supabase se cae
+
+**La pregunta modelo exacta del documento de evaluación.** Y la respuesta empieza con
+algo que se verificó antes de diseñar nada, no se asumió: `supabase-js` **no lanza
+excepciones** cuando la conexión falla. Se probó contra un puerto sin nada escuchando:
+
+```
+{ data: null, error: { message: "TypeError: fetch failed", code: "" } }
+```
+
+Eso cambia el diagnóstico. El problema no era la falta de `try/catch` — eran **11
+páginas del servidor que leían `data` y nunca miraban `error`**, así que una base caída
+se veía exactamente igual que "no hay menú esta semana" o "no tienes pedidos". Se agregó
+`esFalloDeConexion()` (una heurística documentada, no una certeza — no existe un código
+estándar de Postgres para "no pude ni preguntar") y cada página aprendió a distinguir
+las dos cosas.
+
+### El hallazgo que no estaba en el plan
+
+Verificando esa corrección contra una caída real, apareció algo peor: **el proxy y la
+capa de autorización expulsaban a cualquiera al login** cuando no podían verificar la
+sesión — sin distinguir "no hay sesión" de "no se pudo verificar por la red". Le pasaba
+a una clienta a media compra.
+
+La corrección usa una propiedad real de la librería, confirmada leyendo su código
+fuente: `getSession()` lee la cookie y la decodifica localmente, sin red;
+`getUser()` siempre llama a Supabase para confirmarla. Si `getSession()` encuentra una
+sesión pero `getUser()` no pudo verificarla, ya no se concluye "no hay sesión" — el
+proxy deja pasar la petición, y la capa de autorización lanza una excepción que atrapa
+el `error.tsx` correspondiente, con botón de reintentar, en vez de un salto silencioso.
+
+**Cómo se verificó sin poder simular la caída completa.** Cambiar la URL de Supabase a
+un host inalcanzable también cambia el nombre de cookie que el cliente espera (se
+deriva de la referencia del proyecto), así que ese método de prueba rompe por una razón
+distinta a la que se quiere probar. Y usar `/etc/hosts` para simular la caída
+manteniendo la URL real queda fuera de lo que se debe tocar sin autorización explícita.
+
+Se armó una prueba aislada en su lugar: la URL real del proyecto (para que el nombre de
+cookie coincida) más una cookie de sesión real, con `fetch` interceptado para fallar
+solo donde se necesitaba:
+
+```
+getUser() con red  → user: prueba.clienta@wellbox-test.mx
+getSession() sin red → session: ENCONTRADA (local, sin red)
+getUser() sin red    → user: null
+```
+
+Confirma exactamente la premisa del arreglo, y de que el arreglo no abre una puerta a
+quien de verdad no tiene sesión se verificó aparte: una petición sin ninguna cookie
+sigue siendo rechazada.
+
+**El patrón que se repite en este proyecto:** la prueba correcta no siempre es la más
+obvia. Cambiar una variable de entorno para "simular una caída" parecía suficiente, y no
+lo era — habría dado un falso negativo por una razón completamente distinta a la que se
+quería probar. Vale la pena entender qué se está probando de verdad antes de construir
+la simulación.
+
 ---
 
 ## 7. Puntos de entrega fijos en vez de direcciones libres

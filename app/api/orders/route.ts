@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isOrderable } from "@/lib/cutoff";
 import { aCentavos, MONEDA, stripe } from "@/lib/stripe/server";
 import { cancelarCheckoutsAbandonados } from "@/lib/stripe/cancelar";
+import { esFalloDeConexion } from "@/lib/db-error";
 
 interface OrderItemPayload {
   dayDate: string;
@@ -112,7 +113,13 @@ export async function POST(request: Request) {
     .in("id", dishIds);
 
   if (dishesError || !dishes) {
-    return NextResponse.json({ error: "No se pudieron validar los platillos." }, { status: 500 });
+    // Nada se cobró todavía: esta comprobación ocurre antes de crear el cobro con
+    // Stripe. Un fallo de conexión aquí es distinguible (503, reintentable) de un
+    // problema real con los datos (500).
+    return NextResponse.json(
+      { error: "No pudimos validar tu pedido. Intenta de nuevo en un momento." },
+      { status: esFalloDeConexion(dishesError) ? 503 : 500 }
+    );
   }
 
   const dishMap = new Map(dishes.map((d) => [d.id, d]));
@@ -127,7 +134,10 @@ export async function POST(request: Request) {
       : { data: [], error: null };
 
   if (choicesError) {
-    return NextResponse.json({ error: "No se pudieron validar las opciones." }, { status: 500 });
+    return NextResponse.json(
+      { error: "No pudimos validar tu pedido. Intenta de nuevo en un momento." },
+      { status: esFalloDeConexion(choicesError) ? 503 : 500 }
+    );
   }
   const choiceMap = new Map((choices ?? []).map((c) => [c.id, c]));
 
@@ -262,9 +272,16 @@ export async function POST(request: Request) {
         .catch(() => {});
     }
     const sinStock = orderError?.code === "23514";
+    const sinConexion = esFalloDeConexion(orderError ?? null);
     return NextResponse.json(
-      { error: sinStock ? orderError!.message : "No se pudo crear el pedido." },
-      { status: sinStock ? 409 : 500 }
+      {
+        error: sinStock
+          ? orderError!.message
+          : sinConexion
+            ? "No pudimos conectarnos para guardar tu pedido. No se te cobró nada — intenta de nuevo."
+            : "No se pudo crear el pedido.",
+      },
+      { status: sinStock ? 409 : sinConexion ? 503 : 500 }
     );
   }
 

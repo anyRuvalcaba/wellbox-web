@@ -1,19 +1,29 @@
 import { createClient } from "@/lib/supabase/server";
+import { esFalloDeConexion } from "@/lib/db-error";
 import type { MenuDay, MenuDish, OptionGroup, PublishedMenu } from "@/lib/types";
 import MenuBrowser from "./MenuBrowser";
+import EstadoSinConexion from "@/app/EstadoSinConexion";
 
 export const dynamic = "force-dynamic";
 
-async function getPublishedMenu(): Promise<PublishedMenu | null> {
+// null en `menu` puede significar dos cosas muy distintas: no hay semana publicada
+// (vacío legítimo), o Supabase no respondió (falla técnica). `sinConexion` distingue
+// la segunda, revisando solo esta primera consulta — es la más temprana y la más
+// representativa: si la base no responde aquí, no va a responder en las siguientes.
+async function getPublishedMenu(): Promise<{
+  menu: PublishedMenu | null;
+  sinConexion: boolean;
+}> {
   const supabase = await createClient();
 
-  const { data: menu } = await supabase
+  const { data: menu, error: menuError } = await supabase
     .from("menus")
     .select("id, week_start_date")
     .eq("is_published", true)
     .maybeSingle();
 
-  if (!menu) return null;
+  if (esFalloDeConexion(menuError)) return { menu: null, sinConexion: true };
+  if (!menu) return { menu: null, sinConexion: false };
 
   const { data: days } = await supabase
     .from("menu_days")
@@ -22,7 +32,7 @@ async function getPublishedMenu(): Promise<PublishedMenu | null> {
     .order("position");
 
   if (!days || days.length === 0) {
-    return { id: menu.id, weekStartDate: menu.week_start_date, days: [] };
+    return { menu: { id: menu.id, weekStartDate: menu.week_start_date, days: [] }, sinConexion: false };
   }
 
   const dayIds = days.map((d) => d.id);
@@ -104,11 +114,13 @@ async function getPublishedMenu(): Promise<PublishedMenu | null> {
     dishes: dishesByDay.get(day.id) ?? [],
   }));
 
-  return { id: menu.id, weekStartDate: menu.week_start_date, days: menuDays };
+  return { menu: { id: menu.id, weekStartDate: menu.week_start_date, days: menuDays }, sinConexion: false };
 }
 
 export default async function PedidoPage() {
-  const menu = await getPublishedMenu();
+  const { menu, sinConexion } = await getPublishedMenu();
+
+  if (sinConexion) return <EstadoSinConexion />;
 
   if (!menu || menu.days.length === 0) {
     return (
