@@ -4,7 +4,7 @@
 - **Tipo:** feature
 - **Complejidad:** L
 - **Fecha:** 2026-08-24
-- **Estado:** IN PROGRESS
+- **Estado:** DONE
 
 ## Historia
 
@@ -56,9 +56,9 @@ cuál tarjeta es.
 - [x] **CA-6** — Puede registrar métodos de pago: efectivo, transferencia y tarjeta.
 - [x] **CA-7** — De una tarjeta se guardan solo marca y últimos 4; **nunca CVV ni PAN**.
 - [x] **CA-8** — Una clienta solo ve y edita sus propios métodos de pago.
-- [ ] **CA-9** — El checkout deja elegir método de pago entre los suyos.
-- [ ] **CA-10** — El pedido guarda copia del nombre del punto de entrega y del método.
-- [ ] **CA-11** — El admin ve cuántas clientas y cuántas entregas hay por punto.
+- [x] **CA-9** — El checkout deja elegir método de pago entre los suyos.
+- [x] **CA-10** — El pedido guarda copia del nombre del punto de entrega y del método.
+- [x] **CA-11** — El admin ve cuántas clientas y cuántas entregas hay por punto.
 
 ## Consideraciones de Seguridad
 
@@ -163,8 +163,27 @@ predeterminada.
 asignado, y con la confirmación por correo activada el alta no deja sesión para
 escribirlo. El perfil permite fijarlo cuando está vacío.
 
-**Pendiente de esta fase:** CA-9 (elegir método en el checkout), CA-10 (copia en el
-pedido) y CA-11 (reporte de clientas y entregas por punto).
+**Cierre (2026-08-24).** CA-9, CA-10 y CA-11 verificados con pedidos reales contra
+producción:
+
+- Se hizo un pedido pagando con tarjeta y otro con transferencia. Ambos guardaron copia
+  del punto de entrega y de la forma de pago.
+- El comprobante solo se exige en transferencia; con tarjeta el pedido queda `pending` y
+  sin comprobante, que es lo correcto.
+- `/admin/entregas` reporta 1 clienta, 1 entrega y $155 en Semtech, y 0 en los otros dos
+  puntos.
+
+**Corrección de alcance — el pago con tarjeta debe ser en línea al confirmar el pedido.**
+Los mensajes originales daban a entender un cobro físico al entregar, que no es la
+operación de WellBox. Corregidos: efectivo se cobra al entregar, transferencia se
+corrobora por WhatsApp, y tarjeta dice de frente que quedó pendiente y que **no se ha
+cobrado nada**. Esto reclasifica la pasarela de pago: para "tarjeta" no es una mejora
+opcional sino el método mismo. Registrado como **T-011**.
+
+**Bug encontrado y corregido — el carrito perdía el menú.** Los efectos de los
+componentes hijos corren antes que los del padre, así que la hidratación del carrito
+borraba el menú que `MenuBrowser` acababa de fijar. El checkout rechazaba el pedido con
+"tu sesión expiró". Era anterior a esta fase y solo aparecía en la primera visita.
 
 ## Resultados
 
