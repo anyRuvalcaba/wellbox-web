@@ -73,6 +73,19 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
+-- El trigger anterior solo alcanza a las cuentas que se creen de aquí en adelante.
+-- Las que ya existían (el equipo, dadas de alta a mano en el dashboard) se quedarían
+-- sin perfil, y por lo tanto sin rol y sin forma de entrar al panel. Este relleno las
+-- incorpora.
+insert into public.profiles (id, email, full_name, phone)
+select
+  u.id,
+  u.email,
+  nullif(trim(u.raw_user_meta_data ->> 'full_name'), ''),
+  nullif(trim(u.raw_user_meta_data ->> 'phone'), '')
+from auth.users u
+on conflict (id) do nothing;
+
 -- ─────────────────────────────────────────────────────────────────────────
 -- Anti-escalación de privilegios.
 --

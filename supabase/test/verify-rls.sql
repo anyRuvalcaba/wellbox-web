@@ -14,8 +14,9 @@ insert into auth.users (id, email, raw_user_meta_data) values
 -- ── CA-2: el perfil se crea solo al registrarse ────────────────────────────
 do $$
 begin
-  if (select count(*) from profiles) <> 3 then
-    raise exception 'CA-2 FALLA: se esperaban 3 perfiles, hay %', (select count(*) from profiles);
+  if (select count(*) from profiles) <> 4 then
+    raise exception 'CA-2 FALLA: se esperaban 4 perfiles (3 nuevos + 1 heredada), hay %',
+      (select count(*) from profiles);
   end if;
   if (select full_name from profiles where id = '11111111-1111-1111-1111-111111111111') <> 'Ana' then
     raise exception 'CA-2 FALLA: full_name no se copió de raw_user_meta_data';
@@ -24,6 +25,18 @@ begin
     raise exception 'CA-2 FALLA: el rol por defecto no es customer';
   end if;
   raise notice 'CA-2 OK — perfil automático con rol customer';
+end $$;
+
+-- ── Relleno: las cuentas creadas antes de la migración también tienen perfil ──
+do $$
+begin
+  if not exists (select 1 from profiles where id = '99999999-9999-9999-9999-999999999999') then
+    raise exception 'RELLENO FALLA: una cuenta creada antes de la migración se quedó sin perfil — quedaría sin acceso';
+  end if;
+  if (select full_name from profiles where id = '99999999-9999-9999-9999-999999999999') <> 'Cuenta Heredada' then
+    raise exception 'RELLENO FALLA: no se copió el nombre de la cuenta heredada';
+  end if;
+  raise notice 'RELLENO OK — las cuentas previas a la migración quedan con perfil';
 end $$;
 
 -- Alta del primer admin desde contexto de servidor (sin JWT).

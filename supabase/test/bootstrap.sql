@@ -80,3 +80,9 @@ create table if not exists storage.objects (
 );
 
 alter table storage.objects enable row level security;
+
+-- Simula una cuenta creada a mano antes de que existiera la tabla profiles — el caso
+-- real del equipo de WellBox. Sirve para probar que la migración la incorpora en vez
+-- de dejarla sin perfil y sin acceso.
+insert into auth.users (id, email, raw_user_meta_data)
+values ('99999999-9999-9999-9999-999999999999', 'heredada@test.mx', '{"full_name":"Cuenta Heredada"}');
