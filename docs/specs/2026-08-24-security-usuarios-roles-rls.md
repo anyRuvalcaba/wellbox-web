@@ -59,9 +59,9 @@ sobre `payment-proofs` (comprobantes de pago con datos bancarios de clientes).
 - [x] **CA-4** — Las doce políticas exigen rol `admin`, no solo sesión autenticada.
 - [x] **CA-5** — Un `customer` puede leer únicamente sus propios pedidos.
 - [x] **CA-6** — Un `admin` puede leer y actualizar todos los pedidos.
-- [ ] **CA-7** — El registro público funciona end-to-end: alta, confirmación, login,
+- [x] **CA-7** — El registro público funciona end-to-end: alta, confirmación, login,
       logout.
-- [ ] **CA-8** — `/admin/*` responde con redirección a login para un `customer`
+- [x] **CA-8** — `/admin/*` responde con redirección a login para un `customer`
       autenticado, no solo para usuarios anónimos.
 - [x] **CA-9** — Existe una pantalla de administración de usuarios donde un `admin`
       puede ver la lista y cambiar roles.
@@ -206,6 +206,22 @@ update profiles set role = 'admin' where id = '<uuid de la cuenta>';
 **Fuera de alcance de T-001 (va en T-002):** `profiles.delivery_location_id` y su
 trigger de inmutabilidad.
 
+**Segundo hallazgo del linter de Supabase — `revoke from public` ≠ `revoke from anon`.**
+0004 revocó de `PUBLIC` y el linter siguió marcando `is_admin()` y
+`delete_incomplete_order()` como llamables sin sesión. Supabase tiene
+`alter default privileges in schema public grant execute on functions to anon`, así que
+cada función nace con un permiso explícito a nombre de `anon` **además** del implícito
+de `PUBLIC`; revocar de `PUBLIC` no toca el explícito. Corregido en 0005.
+
+El entorno local no lo detectó porque no reproducía ese `alter default privileges`. Se
+agregó a `bootstrap.sql`, la prueba falló igual que en Supabase, y después se corrigió —
+que es el orden correcto.
+
+**La política de contraseñas del proyecto cambió durante la verificación** (8 caracteres,
+mayúscula, minúscula y dígito). El formulario de registro solo revisaba el largo, así que
+una contraseña válida para el formulario podía ser rechazada por el servidor con un error
+genérico. Ya están alineados.
+
 ## Resultados
 
 - **Fecha de cierre:** 2026-08-24 (implementación); verificación en Supabase pendiente
@@ -218,18 +234,31 @@ salieron del modelado STRIDE: que no se pueda crear un pedido a nombre ajeno
 (*spoofing*), y que el escape de servidor de `protect_role()` no sea explotable desde
 una sesión anónima.
 
-### CAs implementados pero NO verificados todavía
+### Verificación end-to-end contra Supabase — 2026-08-24
 
-| CA | Qué falta |
+Migraciones 0003 y 0004 aplicadas al proyecto `zkfeuibnjfbqiwpuaifh`. Servidor local
+apuntando a esa base, con una cuenta de prueba creada desde `/registro`.
+
+| CA | Resultado |
 |---|---|
-| CA-1 | La tabla existe y las pruebas la usan, pero no se ha creado en Supabase |
-| CA-7 | Registro end-to-end: requiere Supabase Auth, que no corre en el Postgres local |
-| CA-8 | `/admin` con sesión de cliente: `requireAdmin()` lo implementa; falta probarlo vivo |
-| CA-9 | La pantalla compila y consulta `profiles`; falta verla con datos reales |
-| CA-10 | Las políticas de Storage están escritas; el shim local no simula Storage |
+| CA-1 | `profiles` creada; el relleno incorporó la cuenta previa del equipo |
+| CA-2 | El alta creó el perfil sola, rol `customer`, con nombre y teléfono del registro |
+| CA-7 | Registro completo sin confirmación de correo (queda desactivada); sesión inmediata |
+| CA-8 | Con sesión de cliente, `/admin` y `/admin/usuarios` redirigen a `/pedido` |
+| CA-9 | La pantalla carga, lista a los dos usuarios y bloquea cambiarse el rol a uno mismo |
+| CA-5 | **La prueba más contundente:** con 3 pedidos reales en la base, la clienta ve 0 |
+| CA-6 | La misma cuenta promovida a admin ve los 3 pedidos completos |
 
-**El bloqueo es el mismo para todos: el proyecto de Supabase está pausado.** El entorno
-local reproduce Postgres y RLS, no Auth ni Storage, que son servicios de Supabase.
+La consulta de `/pedido/mis-pedidos` no filtra por usuario: el aislamiento lo aplica
+únicamente la política RLS. Que devuelva 0 con 3 pedidos presentes demuestra que la
+política está haciendo el trabajo.
+
+### CA-10 — verificado solo a nivel estructura
+
+Las políticas de Storage existen y están acotadas al dueño del objeto. **No se probó una
+subida real** porque el único menú publicado es del 6 al 10 de julio de 2026, ya pasado
+su cierre, así que no se puede completar un pedido ni subir comprobante. Queda como
+pendiente en cuanto se cargue un menú con fechas vigentes.
 
 ### Deuda técnica generada
 
