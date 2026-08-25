@@ -27,7 +27,8 @@ descrito abajo.
 
 ## El problema de seguridad actual
 
-Las nueve políticas de escritura en `supabase/migrations/0001_init.sql` están escritas así:
+Doce políticas —diez sobre tablas y dos sobre Storage— en
+`supabase/migrations/0001_init.sql` están escritas así:
 
 ```sql
 create policy "authenticated manage menus" on menus
@@ -55,8 +56,7 @@ sobre `payment-proofs` (comprobantes de pago con datos bancarios de clientes).
       automáticamente con rol `customer`.
 - [ ] **CA-3** — Un usuario autenticado con rol `customer` **no puede** modificar su
       propio `role`, ni por API ni por SQL directo con su token.
-- [ ] **CA-4** — Las nueve políticas de escritura exigen rol `admin`, no solo sesión
-      autenticada.
+- [ ] **CA-4** — Las doce políticas exigen rol `admin`, no solo sesión autenticada.
 - [ ] **CA-5** — Un `customer` puede leer únicamente sus propios pedidos.
 - [ ] **CA-6** — Un `admin` puede leer y actualizar todos los pedidos.
 - [ ] **CA-7** — El registro público funciona end-to-end: alta, confirmación, login,
@@ -130,8 +130,8 @@ create trigger profiles_protect_role before update on profiles
 alter table orders add column user_id uuid references auth.users(id) on delete set null;
 ```
 
-Las nueve políticas `for all to authenticated using (true)` se reemplazan por
-`for all to authenticated using (public.is_admin()) with check (public.is_admin())`.
+Las diez políticas de tabla `to authenticated using (true)` se reemplazan por
+equivalentes que exigen `public.is_admin()`, y las dos de Storage se acotan igual.
 
 ## Decisiones de Diseño
 
@@ -150,15 +150,19 @@ compare contra el valor anterior de la fila requiere subconsulta sobre la misma 
 que se está evaluando. El trigger revierte el cambio de forma determinista y es
 verificable con una prueba directa.
 
-## Decisiones Abiertas
+## Decisiones Resueltas
 
 - **AD-1 — ¿Se permite pedir como invitado?** Hoy cualquiera puede crear un pedido sin
   cuenta. Si se exige login, el flujo queda más limpio, `orders.user_id` puede ser `not
   null` y el checkout se pre-llena del perfil; pero se pierde conversión de clientes que
   no se quieren registrar. Si se permite invitado, `user_id` queda nullable y hay que
-  mantener dos caminos en el checkout. **Recomendación: exigir login**, por el entregable
-  "login y registro operativos" y porque simplifica CA-5.
-- **AD-2 — Pedidos históricos.** Los pedidos ya existentes quedan con `user_id` nulo. Se
+  mantener dos caminos en el checkout. **RESUELTO 2026-08-24: se exige login.**
+  `orders.user_id` se llena siempre en pedidos nuevos y se elimina la política que permitía a `anon`
+  crear pedidos.
+- **AD-2 (RESUELTO) — Pedidos históricos.** Nota: por esto la columna queda *nullable*
+  en el DDL. La obligatoriedad se aplica en la política de `insert`
+  (`with check (user_id = auth.uid())`), que es imposible de satisfacer con `null`.
+  Declararla `not null` haría fallar la migración con los pedidos que ya existen. Los pedidos ya existentes quedan con `user_id` nulo. Se
   propone dejarlos así (visibles solo para admin) en lugar de intentar ligarlos por
   teléfono.
 
@@ -170,7 +174,7 @@ verificable con una prueba directa.
 
 ## Riesgos y Deuda Técnica
 
-- La migración toca las nueve políticas existentes. Un error aquí no rompe el build:
+- La migración toca las doce políticas existentes. Un error aquí no rompe el build:
   se manifiesta como datos accesibles o inaccesibles en runtime. **Mitigación:** las
   pruebas de CA-3, CA-4 y CA-5 se escriben antes de aplicar la migración a producción.
 - `handle_new_user` se dispara dentro de la transacción de alta de `auth.users`. Si

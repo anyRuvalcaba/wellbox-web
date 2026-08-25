@@ -53,15 +53,19 @@ realmente. Es el mismo criterio que ya usa `order_items` con `dish_name` y `unit
 puede contar cuántos clientes y cuántas entregas hay por punto. Sale de una sola
 consulta agregada; no requiere tabla extra.
 
-**Decisión abierta AD-3 — ¿el punto de entrega es inmutable?** El requisito dice que no
-cambia porque es el lugar de trabajo. Se puede aplicar de dos formas:
-1. Inmutable en la base: una vez elegido, solo un admin lo cambia.
-2. Editable por la clienta desde su perfil, con el pedido guardando el snapshot.
+**AD-3 (RESUELTO 2026-08-24) — El punto de entrega es inmutable para la clienta.**
 
-**Recomendación: opción 2.** "No cambia" es una expectativa de negocio, no una
-invariante — la gente cambia de trabajo. Con la opción 1, cada cambio de empleo se
-convierte en un ticket de soporte. El snapshot en `orders` ya protege el historial, que
-es la razón real por la que importaba la inmutabilidad.
+Se aplica así: la clienta lo elige **una sola vez**, al registrarse. A partir de ese
+momento solo un `admin` puede cambiarlo desde el panel.
+
+Técnicamente es el mismo patrón que protege `profiles.role`: un trigger `BEFORE UPDATE`
+revierte el cambio salvo que `public.is_admin()` sea verdadero. La única excepción es el
+primer valor — si `delivery_location_id` está en `NULL`, la clienta puede fijarlo. Sin
+esa excepción, el registro self-service no podría completarse.
+
+El snapshot `orders.delivery_location_name` se mantiene de todas formas: aunque el punto
+sea inmutable para la clienta, un admin sí lo puede cambiar, y los pedidos anteriores
+deben seguir mostrando dónde se entregaron.
 
 ### Métodos de pago
 
