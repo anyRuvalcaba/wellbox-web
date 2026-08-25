@@ -285,6 +285,75 @@ Supabase. Es el mismo trato que cualquier credencial de administrador.
 
 ---
 
+## 6d. Stock: se calcula, no se descuenta
+
+**La pregunta:** "¿cómo llevas el inventario?"
+
+Hay dos maneras. La obvia es **descontar**: bajar un contador al crear el pedido y subirlo
+al cancelarlo. La que se eligió es **calcular**:
+
+```
+disponible = stock − lo pedido en pedidos vivos
+```
+
+El motivo es concreto y salió de este mismo proyecto. Un pedido puede terminar en cinco
+estados distintos: pagado, comprobante recibido, confirmado, **rechazado** (tarjeta) o
+**cancelado** (checkout abandonado). Con un contador, cada uno de esos caminos necesita
+lógica que devuelva el stock. El día que se agregue un sexto estado y alguien olvide
+compensarlo, queda **inventario fantasma**: cajas que nadie puede comprar y nadie sabe
+por qué.
+
+Calculándolo, cancelar devuelve el stock **solo**. Da igual quién cambie el estado —el
+webhook de Stripe, el panel, una corrección a mano en SQL—: la disponibilidad se ajusta
+sin código que lo recuerde.
+
+El costo es una consulta agregada. Con unos pocos platillos por semana, irrelevante.
+
+**Un pedido sin pagar sí aparta su caja.** Si no, dos clientas podrían llegar al checkout
+por la última al mismo tiempo y las dos pasarían. Es lo mismo que hace una tienda cuando
+aparta el producto mientras pagas.
+
+### El bug que atrapó la prueba
+
+La primera versión de la vista usaba un `LEFT JOIN` a `orders` con la condición del
+estado dentro del `ON`. Eso deja la fila de `order_items` presente aunque el pedido no
+califique, así que `sum(oi.quantity)` **la seguía contando**: cancelar un pedido no
+devolvía el stock.
+
+Compilaba, no daba error, y devolvía un número plausible. Lo detectó la prueba de CA-3,
+que verifica justamente el comportamiento —no la sintaxis.
+
+Se corrigió con `filter (where o.id is not null)`.
+
+### Dos clientas por la última caja
+
+Entre "verifiqué que hay stock" y "guardé el pedido" caben otras peticiones. Sin un
+candado, las dos ven "queda 1" y las dos crean su pedido: sobreventa.
+
+La comprobación toma un candado sobre la fila del **platillo** —el recurso escaso—, no
+sobre el pedido. Las peticiones por el mismo platillo hacen fila; las de platillos
+distintos no se estorban.
+
+**Esto se prueba con dos conexiones reales compitiendo**, no con un archivo SQL: con una
+sola conexión las operaciones van en orden y el candado nunca tiene que hacer su trabajo.
+`scripts/db-test-concurrencia.sh` lanza dos sesiones simultáneas por la última caja:
+
+```
+→ Ana:  pasó
+→ Beto: rechazada
+→ pedidos que pasaron: 1
+→ cajas comprometidas: 2 de 2
+   rechazo: ERROR: Solo quedan 0 de Bowl Limitado
+```
+
+Es la prueba que vale la pena correr en vivo el día de la defensa.
+
+Contraste con la referencia: el proyecto del curso **declara** `Product.stock` pero solo
+lo usa para filtrar búsquedas. Su `createOrder` no lo valida ni lo descuenta, así que se
+puede pedir cualquier cantidad de cualquier producto agotado.
+
+---
+
 ## 7. Puntos de entrega fijos en vez de direcciones libres
 
 El curso modela `Address` con calle, ciudad, estado, código postal, país y tipo. WellBox
