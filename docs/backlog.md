@@ -11,7 +11,7 @@ Cada fase se mapea a un entregable de la evaluación técnica del curso
 | T-002 | Perfil, punto de entrega y métodos de pago | ✅ DONE | Checkout completo |
 | T-003 | Stock y carrito | ✅ DONE | Carrito completo |
 | T-004 | Manejo de errores y resiliencia | ✅ DONE | Rúbrica: resiliencia |
-| T-005 | Suite de pruebas con Vitest | PENDIENTE | `npm test` en verde |
+| T-005 | Suite de pruebas con Vitest | ✅ DONE | `npm test` en verde |
 | T-006 | README: pase completo de actualización | PENDIENTE | Calidad del repositorio |
 | T-007 | Deploy a Vercel y repo público | PENDIENTE | URL pública con SSL |
 | T-008 | Preparación de la defensa técnica | PENDIENTE | Justificación verbal |
