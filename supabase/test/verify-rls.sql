@@ -171,7 +171,10 @@ declare
   fn text;
 begin
   foreach fn in array array['is_admin()', 'delete_incomplete_order(uuid)',
-                            'handle_new_user()', 'protect_role()']
+                            'handle_new_user()', 'protect_role()',
+                            'clone_dish_into_day(uuid,uuid)',
+                            'duplicate_menu_week(uuid,date,boolean)',
+                            'day_label_es(date)']
   loop
     if has_function_privilege('anon', 'public.' || fn, 'EXECUTE') then
       raise exception 'PERMISOS FALLA: anon puede ejecutar public.% vía /rest/v1/rpc', fn;

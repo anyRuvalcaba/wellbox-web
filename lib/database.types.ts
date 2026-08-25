@@ -356,6 +356,22 @@ export type Database = {
         Args: { order_id: string }
         Returns: undefined
       }
+      clone_dish_into_day: {
+        Args: { source_dish_id: string; target_menu_day_id: string }
+        Returns: string
+      }
+      day_label_es: {
+        Args: { fecha: string }
+        Returns: string
+      }
+      duplicate_menu_week: {
+        Args: {
+          source_menu_id: string
+          new_week_start: string
+          include_saturday?: boolean
+        }
+        Returns: string
+      }
       is_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean
