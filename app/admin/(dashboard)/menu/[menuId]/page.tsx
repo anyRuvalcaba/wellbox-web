@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { MenuDay, MenuDish, OptionGroup } from "@/lib/types";
 import MenuEditor from "./MenuEditor";
+import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,7 @@ export default async function MenuEditorPage({
 }: {
   params: Promise<{ menuId: string }>;
 }) {
+  await requireAdmin();
   const { menuId } = await params;
   const supabase = await createClient();
 

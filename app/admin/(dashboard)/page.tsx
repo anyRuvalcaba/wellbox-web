@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatMXN, formatWeekRangeLabel } from "@/lib/format";
 import { BTN_PRIMARY, BTN_SECONDARY, TEXT_LINK } from "@/lib/ui";
 import BarChart from "./BarChart";
+import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,7 @@ function startOfMonthISO(): string {
 }
 
 export default async function AdminHomePage() {
+  await requireAdmin();
   const supabase = await createClient();
 
   const { data: publishedMenu } = await supabase

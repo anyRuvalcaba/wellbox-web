@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formatWeekRangeLabel } from "@/lib/format";
 import WeekSelector from "./WeekSelector";
 import StatusFilter from "./StatusFilter";
+import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,7 @@ export default async function PedidosPage({
 }: {
   searchParams: Promise<{ menu?: string; status?: string }>;
 }) {
+  await requireAdmin();
   const { menu: menuParam, status: statusParam } = await searchParams;
   const selectedStatus = statusParam === "pending" || statusParam === "confirmed" ? statusParam : "all";
   const supabase = await createClient();
