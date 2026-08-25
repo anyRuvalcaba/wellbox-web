@@ -4,7 +4,7 @@
 - **Tipo:** feature
 - **Complejidad:** L
 - **Fecha:** 2026-08-24
-- **Estado:** DRAFT
+- **Estado:** IN PROGRESS
 
 ## Historia
 
@@ -48,14 +48,14 @@ cuál tarjeta es.
 
 ## Criterios de Aceptación
 
-- [ ] **CA-1** — Existe `delivery_locations` con los tres puntos, administrable por admin.
-- [ ] **CA-2** — Al registrarse, la clienta elige su punto de entrega y queda asociado.
-- [ ] **CA-3** — La clienta **no puede** cambiar su punto una vez fijado; un admin sí.
-- [ ] **CA-4** — El primer valor sí lo puede fijar ella (sin esto el registro no cierra).
-- [ ] **CA-5** — La clienta ve y edita su nombre y teléfono en `/pedido/perfil`.
-- [ ] **CA-6** — Puede registrar métodos de pago: efectivo, transferencia y tarjeta.
-- [ ] **CA-7** — De una tarjeta se guardan solo marca y últimos 4; **nunca CVV ni PAN**.
-- [ ] **CA-8** — Una clienta solo ve y edita sus propios métodos de pago.
+- [x] **CA-1** — Existe `delivery_locations` con los tres puntos, administrable por admin.
+- [x] **CA-2** — Al registrarse, la clienta elige su punto de entrega y queda asociado.
+- [x] **CA-3** — La clienta **no puede** cambiar su punto una vez fijado; un admin sí.
+- [x] **CA-4** — El primer valor sí lo puede fijar ella (sin esto el registro no cierra).
+- [x] **CA-5** — La clienta ve y edita su nombre y teléfono en `/pedido/perfil`.
+- [x] **CA-6** — Puede registrar métodos de pago: efectivo, transferencia y tarjeta.
+- [x] **CA-7** — De una tarjeta se guardan solo marca y últimos 4; **nunca CVV ni PAN**.
+- [x] **CA-8** — Una clienta solo ve y edita sus propios métodos de pago.
 - [ ] **CA-9** — El checkout deja elegir método de pago entre los suyos.
 - [ ] **CA-10** — El pedido guarda copia del nombre del punto de entrega y del método.
 - [ ] **CA-11** — El admin ve cuántas clientas y cuántas entregas hay por punto.
@@ -111,7 +111,16 @@ que no existe no se puede llenar por accidente.
 
 ## Decisiones Abiertas
 
-- **AD-1 — ¿Qué significa "pago con tarjeta"?** Determina buena parte del alcance:
+- **AD-1 (RESUELTO 2026-08-24) — Por ahora, registro de intención.** La clienta indica
+  con qué tarjeta pagará y el cobro ocurre fuera de la app. Igual que el proyecto del
+  curso, cuyo `createOrder` tampoco cobra nada.
+
+  Se evaluó Stripe **en modo de prueba** —que no requiere cuenta de comercio ni trámites
+  fiscales, y permite un flujo real con tarjetas de prueba— y se pospuso: los pendientes
+  fiscales del negocio siguen abiertos. Queda como trabajo futuro, y no obliga a rehacer
+  nada: el método de pago ya es una entidad propia del modelo.
+
+  Alternativas consideradas originalmente:
   1. **Pasarela real** (Stripe / Mercado Pago): cobro de verdad. Alcance grande, requiere
      cuenta de comercio y manejo de webhooks.
   2. **Registro de intención**: la clienta indica que pagará con tarjeta y el cobro ocurre
@@ -135,7 +144,27 @@ que no existe no se puede llenar por accidente.
 
 ## Pendientes Abiertos y Gaps Detectados
 
-> Se completa durante la implementación.
+**Verificado en producción (2026-08-24):** migraciones 0007, 0008 y 0009 aplicadas por
+conexión directa. Se probó en el navegador contra la base real: alta de punto de entrega,
+intento de cambiarlo (revertido por el trigger), alta de dos tarjetas y cambio de
+predeterminada, dejando exactamente una.
+
+**Cambio de alcance — lectura pública de los puntos de entrega (0008).** La pantalla de
+registro necesita listarlos y ahí todavía no hay sesión. Se abrió la lectura de los
+puntos **activos** únicamente; los inactivos siguen ocultos y escribirlos sigue
+exigiendo rol admin. No es información sensible: es dónde entrega WellBox.
+
+**Cambio de alcance — cambiar el predeterminado es una función de Postgres (0009).** Son
+dos operaciones y el índice único parcial impide que ambas tarjetas lo tengan a la vez,
+así que hechas por separado un fallo intermedio deja a la clienta sin ninguna
+predeterminada.
+
+**Hueco cubierto — `SelectorPunto`.** Las cuentas creadas antes de 0007 no tienen punto
+asignado, y con la confirmación por correo activada el alta no deja sesión para
+escribirlo. El perfil permite fijarlo cuando está vacío.
+
+**Pendiente de esta fase:** CA-9 (elegir método en el checkout), CA-10 (copia en el
+pedido) y CA-11 (reporte de clientas y entregas por punto).
 
 ## Resultados
 
