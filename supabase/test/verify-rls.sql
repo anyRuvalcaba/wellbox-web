@@ -170,11 +170,14 @@ do $$
 declare
   fn text;
 begin
-  foreach fn in array array['is_admin()', 'delete_incomplete_order(uuid)',
+  -- delete_incomplete_order() se retiró en 0013: la creación del pedido pasó a ser
+  -- una sola transacción con verificar_stock(), que hace innecesario ese parche.
+  foreach fn in array array['is_admin()',
                             'handle_new_user()', 'protect_role()',
                             'clone_dish_into_day(uuid,uuid)',
                             'duplicate_menu_week(uuid,date,boolean)',
-                            'day_label_es(date)']
+                            'day_label_es(date)',
+                            'verificar_stock(uuid,int)']
   loop
     if has_function_privilege('anon', 'public.' || fn, 'EXECUTE') then
       raise exception 'PERMISOS FALLA: anon puede ejecutar public.% vía /rest/v1/rpc', fn;

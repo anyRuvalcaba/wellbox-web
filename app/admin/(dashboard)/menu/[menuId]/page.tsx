@@ -33,11 +33,23 @@ export default async function MenuEditorPage({
 
   const { data: dishes } = await supabase
     .from("dishes")
-    .select("id, menu_day_id, name, description, price, photo_url, position")
+    .select("id, menu_day_id, name, description, price, photo_url, position, stock")
     .in("menu_day_id", dayIds.length > 0 ? dayIds : ["00000000-0000-0000-0000-000000000000"])
     .order("position");
 
   const dishIds = (dishes ?? []).map((d) => d.id);
+
+  // Aquí "available" se usa para mostrarle al equipo cuántas quedan por vender, no para
+  // bloquear nada — el admin siempre puede editar. El tope que se edita en el formulario
+  // es dish.stock, que se pasa aparte al draft.
+  const { data: disponibilidad } = await supabase
+    .from("dish_availability")
+    .select("dish_id, disponible")
+    .in("dish_id", dishIds.length > 0 ? dishIds : ["00000000-0000-0000-0000-000000000000"]);
+
+  const disponibleByDish = new Map(
+    (disponibilidad ?? []).map((d) => [d.dish_id, d.disponible])
+  );
 
   const { data: groups } = await supabase
     .from("option_groups")
@@ -78,6 +90,8 @@ export default async function MenuEditorPage({
       description: dish.description,
       price: Number(dish.price),
       photoUrl: dish.photo_url,
+      available: dish.stock === null ? null : (disponibleByDish.get(dish.id) ?? 0),
+      stock: dish.stock,
       optionGroups: groupsByDish.get(dish.id) ?? [],
     };
     const list = dishesByDay.get(dish.menu_day_id) ?? [];

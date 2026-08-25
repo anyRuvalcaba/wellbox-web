@@ -4,7 +4,7 @@
 - **Tipo:** feature
 - **Complejidad:** L
 - **Fecha:** 2026-08-24
-- **Estado:** DRAFT
+- **Estado:** DONE
 
 ## Historia
 
@@ -69,17 +69,17 @@ una secuencia de inserciones sueltas con un rollback parcheado.
 
 ## Criterios de Aceptación
 
-- [ ] **CA-1** — `dishes` tiene `stock`, editable desde el panel. Nulo = sin límite.
-- [ ] **CA-2** — La disponibilidad se calcula descontando los pedidos vivos.
-- [ ] **CA-3** — Un pedido `cancelled` o `failed` **devuelve** su stock sin intervención.
-- [ ] **CA-4** — El menú muestra cuántas quedan cuando el platillo está por agotarse.
-- [ ] **CA-5** — Un platillo agotado no se puede agregar al carrito.
-- [ ] **CA-6** — La cantidad en el carrito no puede superar lo disponible.
-- [ ] **CA-7** — El servidor rechaza un pedido que exceda el stock, aunque el navegador
+- [x] **CA-1** — `dishes` tiene `stock`, editable desde el panel. Nulo = sin límite.
+- [x] **CA-2** — La disponibilidad se calcula descontando los pedidos vivos.
+- [x] **CA-3** — Un pedido `cancelled` o `failed` **devuelve** su stock sin intervención.
+- [x] **CA-4** — El menú muestra cuántas quedan cuando el platillo está por agotarse.
+- [x] **CA-5** — Un platillo agotado no se puede agregar al carrito.
+- [x] **CA-6** — La cantidad en el carrito no puede superar lo disponible.
+- [x] **CA-7** — El servidor rechaza un pedido que exceda el stock, aunque el navegador
       lo permita.
-- [ ] **CA-8** — **Dos pedidos simultáneos por la última caja: solo uno pasa.**
-- [ ] **CA-9** — Crear un pedido es una sola transacción: no quedan pedidos a medias.
-- [ ] **CA-10** — El panel muestra disponibilidad por platillo.
+- [x] **CA-8** — **Dos pedidos simultáneos por la última caja: solo uno pasa.**
+- [x] **CA-9** — Crear un pedido es una sola transacción: no quedan pedidos a medias.
+- [x] **CA-10** — El panel muestra disponibilidad por platillo.
 
 ## Consideraciones de Seguridad
 
@@ -99,8 +99,45 @@ una secuencia de inserciones sueltas con un rollback parcheado.
 
 ## Pendientes Abiertos y Gaps Detectados
 
-> Se completa durante la implementación.
+**Bug encontrado por la propia prueba de CA-3.** La primera versión de `dish_availability`
+usaba `left join orders o on o.id = oi.order_id and o.payment_status = any(...)`. Con un
+LEFT JOIN, poner la condición del estado dentro del `ON` deja la fila de `order_items`
+presente aunque el pedido no califique, así que `sum(oi.quantity)` la seguía contando:
+cancelar un pedido no devolvía el stock. Compilaba y devolvía un número plausible.
+Corregido con `filter (where o.id is not null)`.
+
+**Se eliminó `delete_incomplete_order()`.** Era el parche que T-001 dejó registrado como
+deuda técnica: un rollback manual porque crear un pedido eran varias llamadas HTTP
+sueltas. Con `crear_pedido()` como una sola transacción, un fallo a mitad de camino
+—incluida la falta de stock— hace que Postgres deshaga todo solo. El parche ya no tiene
+trabajo que hacer.
+
+**Dos funciones sin `search_path` fijo.** El linter marcó `day_label_es()` (arrastrado
+desde 0006) y `estados_que_consumen_stock()` (heredó el mismo descuido al copiar el
+patrón). Corregido en 0014. Ninguna consultaba tablas, así que el riesgo práctico era
+bajo, pero es la regla que ya se aplica al resto de las funciones del proyecto.
+
+**Verificación de concurrencia contra producción, no solo local.** Con el servidor de
+desarrollo apuntando a la base real, se dispararon dos peticiones `POST /api/orders`
+simultáneas por la última unidad de un platillo (`Promise.all` de dos `fetch`). Una
+respondió `200` con el pedido creado; la otra, `409` con "Solo quedan 0 de Waffles de
+Avena y Queso". La base terminó con `reservado = stock`, sin sobreventa. Es la misma
+prueba que en local, pero pasando por el endpoint HTTP completo que van a usar las
+clientas reales, no solo por la función de Postgres de forma directa.
+
+**Verificación de que el servidor no confía en el navegador.** Se llamó a
+`POST /api/orders` directo por `fetch()`, sin pasar por la interfaz, pidiendo una
+cantidad que excedía lo disponible. El servidor respondió `409` con el mensaje exacto de
+`verificar_stock()`, y el cobro de Stripe ya iniciado se canceló solo — sin pedido que lo
+referenciara, no quedó nada cobrable.
 
 ## Resultados
 
-> Se completa al cerrar.
+- **Fecha de cierre:** 2026-08-25
+- **Rama:** `feature/stock`
+- **Migraciones:** 0012, 0013, 0014 — aplicadas y verificadas en producción.
+- **28 verificaciones automáticas** pasando con `npm run db:verify`, incluida la de
+  concurrencia con dos conexiones reales compitiendo.
+- Verificado además en el navegador contra producción: el menú muestra "¡Quedan N!" y
+  "Agotado", el botón de agregar queda deshabilitado, y el contador de cantidad topa en
+  lo disponible.

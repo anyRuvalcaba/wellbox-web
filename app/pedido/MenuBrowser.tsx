@@ -168,7 +168,13 @@ function DishOption({
   const [draft, setDraft] = useState<Record<string, Set<string>>>({});
   const [error, setError] = useState<string | null>(null);
 
+  // null = sin límite. 0 = agotado. Un número bajo se avisa de una vez, para que la
+  // clienta no arme sus opciones y se entere hasta el final que ya no hay.
+  const agotado = dish.available === 0;
+  const pocasQuedan = dish.available !== null && dish.available > 0 && dish.available <= 3;
+
   function handleTap() {
+    if (agotado && !isSelected) return;
     if (isSelected) {
       if (dish.optionGroups.length === 0) {
         // nada que editar, un toque quita el platillo
@@ -261,16 +267,35 @@ function DishOption({
   return (
     <div
       className={`rounded-xl border transition ${
-        isSelected ? "border-olive bg-olive-light/20" : "border-peach/70 bg-white"
+        isSelected
+          ? "border-olive bg-olive-light/20"
+          : agotado
+            ? "border-peach/40 bg-cream-dark/30"
+            : "border-peach/70 bg-white"
       }`}
     >
       <div className="w-full px-4 py-3 flex flex-col gap-2">
         <div className="flex items-start gap-2">
-          <button type="button" onClick={handleTap} className="flex-1 text-left flex items-start gap-3">
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleTap}
+            disabled={agotado && !isSelected}
+            className="flex-1 text-left flex items-start gap-3 disabled:cursor-not-allowed"
+          >
+            <div className={`flex-1 ${agotado && !isSelected ? "opacity-50" : ""}`}>
+              <div className="flex items-center gap-2 flex-wrap">
                 <p className="font-semibold">{dish.name}</p>
                 {isSelected && <span className="text-olive text-sm">✓ Agregado</span>}
+                {agotado && !isSelected && (
+                  <span className="text-xs font-semibold text-rust bg-peach-light px-2 py-0.5 rounded-full">
+                    Agotado
+                  </span>
+                )}
+                {pocasQuedan && (
+                  <span className="text-xs font-semibold text-rust">
+                    ¡Quedan {dish.available}!
+                  </span>
+                )}
               </div>
               {dish.description && <p className="text-sm text-brown/60 mt-0.5">{dish.description}</p>}
               {isSelected && dish.optionGroups.length > 0 && (
@@ -292,6 +317,7 @@ function DishOption({
               <QuantityStepper
                 quantity={selectedItem.quantity}
                 onChange={(q) => cart.setItemQuantity(dayDate, q)}
+                max={dish.available ?? undefined}
               />
             </div>
             <span className="text-xs text-brown/50">

@@ -29,11 +29,23 @@ async function getPublishedMenu(): Promise<PublishedMenu | null> {
 
   const { data: dishes } = await supabase
     .from("dishes")
-    .select("id, menu_day_id, name, description, price, photo_url, position")
+    .select("id, menu_day_id, name, description, price, photo_url, position, stock")
     .in("menu_day_id", dayIds)
     .order("position");
 
   const dishIds = (dishes ?? []).map((d) => d.id);
+
+  // Sin límite (stock nulo) no aparece en la vista con un valor — solo si tiene tope.
+  // Se lee aparte, no en el mismo select, porque dish_availability es una vista
+  // distinta con su propio cálculo.
+  const { data: disponibilidad } = await supabase
+    .from("dish_availability")
+    .select("dish_id, disponible")
+    .in("dish_id", dishIds.length > 0 ? dishIds : ["00000000-0000-0000-0000-000000000000"]);
+
+  const disponibleByDish = new Map(
+    (disponibilidad ?? []).map((d) => [d.dish_id, d.disponible])
+  );
 
   const { data: groups } = await supabase
     .from("option_groups")
@@ -76,6 +88,9 @@ async function getPublishedMenu(): Promise<PublishedMenu | null> {
       price: Number(dish.price),
       photoUrl: dish.photo_url,
       optionGroups: groupsByDish.get(dish.id) ?? [],
+      // dish.stock null → sin tope → available null, sin ir a buscarlo en la vista.
+      available: dish.stock === null ? null : (disponibleByDish.get(dish.id) ?? 0),
+      stock: dish.stock,
     };
     const list = dishesByDay.get(dish.menu_day_id) ?? [];
     list.push(entry);

@@ -126,3 +126,85 @@ begin
   end if;
   raise notice 'STOCK ESCRITURA OK — solo un admin puede cambiar el stock';
 end $$;
+
+-- ── CA-9: crear_pedido es atómico — un fallo no deja nada escrito ─────────
+do $$
+declare
+  pedidos_antes int;
+  items_antes int;
+  rechazado boolean := false;
+begin
+  select count(*) into pedidos_antes from orders;
+  select count(*) into items_antes from order_items;
+
+  perform set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111"}', true);
+  execute 'set local role authenticated';
+
+  begin
+    -- A esta altura Bowl Limitado tiene 1 disponible (tope 2, 1 ya pagado en la
+    -- prueba de CA-3). Pedir 2 excede lo que queda y debe fallar sin dejar nada escrito.
+    perform public.crear_pedido(
+      'eeeeeeee-0000-0000-0000-000000000001', 'Ana', '449', null,
+      null, null, null, 'Efectivo', 'pending', null, null, 200,
+      jsonb_build_array(jsonb_build_object(
+        'dish_id', '0a0a0a0a-0000-0000-0000-000000000001',
+        'dish_name', 'Bowl Limitado', 'day_label', 'Lunes', 'day_date', '2026-11-02',
+        'unit_price', 100, 'quantity', 2, 'options', '[]'::jsonb
+      ))
+    );
+  exception when check_violation then
+    rechazado := true;
+  end;
+
+  execute 'reset role';
+
+  if not rechazado then
+    raise exception 'CA-9 FALLA: crear_pedido aceptó un platillo agotado';
+  end if;
+  if (select count(*) from orders) <> pedidos_antes then
+    raise exception 'CA-9 FALLA: quedó un pedido a medias tras el rechazo por stock';
+  end if;
+  if (select count(*) from order_items) <> items_antes then
+    raise exception 'CA-9 FALLA: quedaron renglones huérfanos tras el rechazo por stock';
+  end if;
+  raise notice 'CA-9 OK — un pedido rechazado por stock no deja nada escrito';
+end $$;
+
+-- ── crear_pedido con stock disponible sí completa las tres tablas ─────────
+do $$
+declare
+  pedido_nuevo uuid;
+  renglones int;
+begin
+  perform set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222"}', true);
+  execute 'set local role authenticated';
+
+  pedido_nuevo := public.crear_pedido(
+    'eeeeeeee-0000-0000-0000-000000000001', 'Beto', '449', 'sin cubiertos',
+    null, null, null, 'Efectivo', 'pending', null, null, 100,
+    jsonb_build_array(jsonb_build_object(
+      'dish_id', '0a0a0a0a-0000-0000-0000-000000000002',
+      'dish_name', 'Bowl Ilimitado', 'day_label', 'Lunes', 'day_date', '2026-11-02',
+      'unit_price', 100, 'quantity', 3,
+      'options', jsonb_build_array(jsonb_build_object(
+        'group_label', 'Extras', 'choice_label', 'Miel', 'extra_cost', 5
+      ))
+    ))
+  );
+
+  execute 'reset role';
+
+  if (select user_id from orders where id = pedido_nuevo) <> '22222222-2222-2222-2222-222222222222' then
+    raise exception 'CREAR_PEDIDO FALLA: el pedido no quedó a nombre de quien lo creó';
+  end if;
+  select count(*) into renglones from order_items where order_id = pedido_nuevo;
+  if renglones <> 1 then
+    raise exception 'CREAR_PEDIDO FALLA: se esperaba 1 renglón, hay %', renglones;
+  end if;
+  if (select count(*) from order_item_options oi
+      join order_items it on it.id = oi.order_item_id
+      where it.order_id = pedido_nuevo) <> 1 then
+    raise exception 'CREAR_PEDIDO FALLA: no se guardó la opción del renglón';
+  end if;
+  raise notice 'CREAR_PEDIDO OK — pedido, renglón y opción quedaron completos en una sola llamada';
+end $$;

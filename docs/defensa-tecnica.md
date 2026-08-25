@@ -68,6 +68,23 @@ Y el remate: su plan de pruebas tiene **20 pruebas de PaymentMethods, todas pasa
 ninguna lo detectó — porque nadie escribió "la usuaria B no puede borrar la tarjeta de la
 usuaria A".
 
+### Crear un pedido es una sola transacción, no varias llamadas sueltas
+
+Hasta T-003, `POST /api/orders` insertaba el pedido y cada renglón con llamadas HTTP
+separadas — el mismo patrón que tenía el rollback parcheado de T-001
+(`delete_incomplete_order`, que borraba un pedido a medias si algo fallaba entre una
+llamada y la siguiente).
+
+Con el stock, ese hueco dejó de ser tolerable: la comprobación de disponibilidad tiene
+que ocurrir bajo el mismo candado que la escritura, o dos clientas pueden ver "queda 1"
+y las dos completar su pedido. La solución fue una función de Postgres,
+`crear_pedido()`, que hace todo —candado, comprobación, inserción del pedido, de cada
+renglón y de sus opciones— en una sola transacción. Si algo falla a la mitad, Postgres
+deshace todo solo: **el parche ya no tiene trabajo que hacer**, y se eliminó.
+
+Es el cierre de un ciclo: T-001 detectó el problema y lo parchó: T-003 lo resolvió de
+raíz.
+
 En WellBox la regla no vive en seis funciones, vive en la tabla:
 
 ```sql
@@ -347,6 +364,13 @@ sola conexión las operaciones van en orden y el candado nunca tiene que hacer s
 ```
 
 Es la prueba que vale la pena correr en vivo el día de la defensa.
+
+**Y se repitió contra producción, por el endpoint HTTP completo.** Con el servidor
+apuntando a la base real, dos peticiones `POST /api/orders` simultáneas por la última
+unidad de un platillo real del menú: una devolvió `200` con el pedido creado, la otra
+`409` con "Solo quedan 0 de Waffles de Avena y Queso". La base terminó exactamente en
+`reservado = stock`. No es una simulación — es el mismo camino que sigue una clienta real,
+ejercitado dos veces a la vez.
 
 Contraste con la referencia: el proyecto del curso **declara** `Product.stock` pero solo
 lo usa para filtrar búsquedas. Su `createOrder` no lo valida ni lo descuenta, así que se
