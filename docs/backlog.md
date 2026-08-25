@@ -12,13 +12,13 @@ Cada fase se mapea a un entregable de la evaluación técnica del curso
 | T-003 | Stock y carrito | ✅ DONE | Carrito completo |
 | T-004 | Manejo de errores y resiliencia | ✅ DONE | Rúbrica: resiliencia |
 | T-005 | Suite de pruebas con Vitest | PENDIENTE | `npm test` en verde |
-| T-006 | README y `npm audit` | PENDIENTE | Calidad del repositorio |
+| T-006 | README: pase completo de actualización | PENDIENTE | Calidad del repositorio |
 | T-007 | Deploy a Vercel y repo público | PENDIENTE | URL pública con SSL |
 | T-008 | Preparación de la defensa técnica | PENDIENTE | Justificación verbal |
 | T-009 | Duplicar semana anterior en el editor de menú | ✅ DONE | — (mejora operativa) |
 | T-010 | Identidad visual: logo y tipografía | PENDIENTE | — (detalle visual) |
 | T-011 | Pasarela de pago en línea (Stripe) | ✅ DONE | Checkout completo |
-| T-012 | Resolver `npm audit` (6 altas) | PENDIENTE | Calidad del repositorio |
+| T-012 | Resolver `npm audit` (3 altas, antes 6) | PENDIENTE | Calidad del repositorio |
 | T-013 | Pedidos abandonados en el checkout con tarjeta | ✅ DONE | — (higiene de datos) |
 | T-014 | Traducir estados de pago de Stripe en /pedido/mis-pedidos | PENDIENTE | — (detalle de presentación) |
 
@@ -288,3 +288,21 @@ No bloquea nada: los pedidos abandonados son visibles y no cobran dinero.
 `transfer_uploaded` y `confirmed`. Los estados que llegaron con T-003/T-011
 (`paid`, `failed`, `cancelled`) se muestran tal cual, en inglés y sin badge de color.
 Encontrado de paso durante la verificación de T-004, fuera de su alcance.
+
+
+---
+
+## T-006 — README: pase completo de actualización
+
+El README arrastra afirmaciones que ya no son ciertas, de fases anteriores a que se
+escribieran:
+
+- "No hay registro público — los usuarios se crean a mano en el dashboard de Supabase"
+  (falso desde T-001)
+- "Pagos: solo transferencia bancaria + comprobante (sin pasarela de pago)" (falso desde
+  T-011)
+- "Estructura del proyecto" no menciona `app/(auth)/`, stock, puntos de entrega, Stripe,
+  ni las pruebas
+
+Encontrado de paso al documentar T-005. Necesita una revisión completa, no parches
+puntuales — se deja para su propia pasada en vez de tocarlo a medias aquí.

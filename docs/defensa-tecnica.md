@@ -436,6 +436,46 @@ lo era — habría dado un falso negativo por una razón completamente distinta 
 quería probar. Vale la pena entender qué se está probando de verdad antes de construir
 la simulación.
 
+
+---
+
+## 6f. Dos suites de pruebas, no una forzada a hacer todo
+
+**La pregunta:** "¿por qué `npm run db:verify` y `npm test` por separado? ¿No debería
+ser todo `npm test`?"
+
+`npm test` corre Vitest: 43 pruebas, sin ninguna dependencia externa, en 2 segundos.
+Cubre las funciones puras de `lib/` (el corte de las 11pm, el formateo de moneda, el
+redondeo a centavos) y un componente de React. `npm run db:verify` corre 28
+verificaciones en SQL contra un Postgres local real, incluida la prueba de concurrencia
+con dos conexiones compitiendo por la última unidad de stock.
+
+No se reescribió esa prueba de concurrencia en JavaScript con mocks, y es una decisión,
+no una omisión: un mock de Postgres no puede probar que un candado de verdad funciona —
+solo puede probar que el código *llama* a lo que se espera que llame. La única forma
+honesta de probar "dos transacciones reales compitiendo por la misma fila, solo una
+gana" es con dos transacciones reales.
+
+Es la misma separación que ya usa el proyecto del curso —unitarios sin dependencias vs.
+integración con `mongodb-memory-server`— con una diferencia de mecanismo: Postgres no
+tiene un equivalente maduro a `mongodb-memory-server` que levante una instancia completa
+embebida en el proceso de pruebas, así que WellBox usa un Postgres local real vía
+Homebrew en su lugar. Mismo principio — pruebas de integración no dependen de servicios
+en producción — con la herramienta que el motor de base de datos elegido sí tiene
+disponible.
+
+### Un detalle de Vitest que costó cinco pruebas fallidas
+
+Vitest, a diferencia de Jest, **no limpia el DOM entre pruebas por su cuenta**. El primer
+intento de probar `QuantityStepper` falló 5 de 6 casos con "se encontraron varios
+elementos" — los renders de una prueba se quedaban montados para la siguiente. Se
+corrige con un `afterEach(cleanup)` explícito en la configuración.
+
+Vale la pena decirlo así en la defensa: "usa Vitest en vez de Jest" no es un cambio
+cosmético de nombre. El comportamiento por defecto difiere, y solo se nota al correr las
+pruebas de verdad — otra vez el patrón de esta sesión: la prueba real encuentra cosas
+que la lectura del código no.
+
 ---
 
 ## 7. Puntos de entrega fijos en vez de direcciones libres

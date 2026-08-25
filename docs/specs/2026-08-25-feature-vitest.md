@@ -4,7 +4,7 @@
 - **Tipo:** feature
 - **Complejidad:** M
 - **Fecha:** 2026-08-25
-- **Estado:** DRAFT
+- **Estado:** DONE
 
 ## Historia
 
@@ -73,13 +73,13 @@ que nada que ya lo importe cambia.
 
 ## Criterios de Aceptación
 
-- [ ] **CA-1** — `npm test` corre sin quedarse en modo watch y termina con código 0.
-- [ ] **CA-2** — Cada módulo de la tabla de arriba tiene pruebas, incluidos casos borde
+- [x] **CA-1** — `npm test` corre sin quedarse en modo watch y termina con código 0.
+- [x] **CA-2** — Cada módulo de la tabla de arriba tiene pruebas, incluidos casos borde
       (medianoche exacta del cierre, cero centavos, fecha que cruza fin de mes).
-- [ ] **CA-3** — `aCentavos()` se prueba sin necesitar `STRIPE_SECRET_KEY`.
-- [ ] **CA-4** — El README explica la diferencia entre `npm test` y `npm run db:verify`,
+- [x] **CA-3** — `aCentavos()` se prueba sin necesitar `STRIPE_SECRET_KEY`.
+- [x] **CA-4** — El README explica la diferencia entre `npm test` y `npm run db:verify`,
       y cuándo corre cada uno.
-- [ ] **CA-5** — Verificado en limpio: `rm -rf node_modules && npm install && npm test`
+- [x] **CA-5** — Verificado en limpio: `rm -rf node_modules && npm install && npm test`
       pasa sin ajustes, no solo en la máquina donde se escribió.
 
 ## Riesgos y Deuda Técnica
@@ -91,8 +91,37 @@ que nada que ya lo importe cambia.
 
 ## Pendientes Abiertos y Gaps Detectados
 
-> Se completa durante la implementación.
+**Vitest no limpia el DOM entre pruebas solo, a diferencia de Jest.** El primer intento
+de `QuantityStepper.test.tsx` falló 5 de 6 pruebas con "multiple elements found": los
+renders de una prueba se quedaban montados para la siguiente. Se corrigió con
+`afterEach(cleanup)` en `vitest.setup.mts`. Un recordatorio de que "usa Vitest en vez de
+Jest" no es un cambio cosmético — el comportamiento por defecto difiere.
+
+**`aCentavos()` estaba acoplado a un archivo que revienta sin `STRIPE_SECRET_KEY`.**
+Se extrajo a `lib/dinero.ts`, puro, sin importar el SDK de Stripe.
+`lib/stripe/server.ts` lo re-exporta — ningún importador existente cambió.
+
+**Advertencias de configuración de Vite, resueltas antes de dar el spec por cerrado.**
+`vitest.config.ts` avisaba que se cargaba como CommonJS por sintaxis ESM sin
+`"type": "module"` en `package.json` (no se tocó ese campo — afectaría al resto de la
+app Next). Se renombró a `.mts`. Y `vite-tsconfig-paths` ya no hacía falta: Vite lo
+resuelve nativamente vía `resolve.tsconfigPaths` — una dependencia de menos.
+
+**`npm install` limpio avisó que `@supabase/auth-js` pide Node ≥22** (esta máquina corre
+20.20.1). Es una advertencia, no un error — la app y las pruebas funcionan igual — pero
+queda registrado como riesgo de reproducibilidad en otra máquina.
+
+**Encontrado de paso, fuera de alcance:** el README tiene afirmaciones desactualizadas
+de antes de T-001 y T-011 (registro público, pasarela de pago). Ampliado el alcance de
+T-006 en el backlog para cubrirlo con su propia pasada.
 
 ## Resultados
 
-> Se completa al cerrar.
+- **Fecha de cierre:** 2026-08-25
+- **Rama:** `feature/vitest`
+- **43 pruebas, 7 archivos, todas pasando**, en ~2 segundos
+- Verificado en limpio: `rm -rf node_modules package-lock.json && npm install && npm test`
+  pasa sin ajustes (CA-5)
+- `npm run build`, `npm run lint` y `npx tsc --noEmit` siguen limpios tras los cambios
+- `npm audit` bajó de 6 a 3 vulnerabilidades altas como efecto colateral de las
+  dependencias nuevas — T-012 actualizado
