@@ -20,6 +20,7 @@ Cada fase se mapea a un entregable de la evaluación técnica del curso
 | T-011 | Pasarela de pago en línea (Stripe) | ✅ DONE | Checkout completo |
 | T-012 | Resolver `npm audit` (6 altas) | PENDIENTE | Calidad del repositorio |
 | T-013 | Pedidos abandonados en el checkout con tarjeta | ✅ DONE | — (higiene de datos) |
+| T-014 | Traducir estados de pago de Stripe en /pedido/mis-pedidos | PENDIENTE | — (detalle de presentación) |
 
 ---
 
@@ -277,3 +278,13 @@ Pendiente:
   sin crear el cobro por adelantado.
 
 No bloquea nada: los pedidos abandonados son visibles y no cobran dinero.
+
+
+---
+
+## T-014 — Traducir estados de pago de Stripe en /pedido/mis-pedidos
+
+`ETIQUETA_PAGO` en `app/pedido/mis-pedidos/page.tsx` solo mapea `pending`,
+`transfer_uploaded` y `confirmed`. Los estados que llegaron con T-003/T-011
+(`paid`, `failed`, `cancelled`) se muestran tal cual, en inglés y sin badge de color.
+Encontrado de paso durante la verificación de T-004, fuera de su alcance.

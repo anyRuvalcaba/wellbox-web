@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
+import { esFalloDeConexion } from "@/lib/db-error";
+import EstadoSinConexion from "@/app/EstadoSinConexion";
 import type { MetodoPago, TipoPago } from "@/lib/pagos";
 import PerfilForm from "./PerfilForm";
 import MetodosPago from "./MetodosPago";
@@ -11,7 +13,7 @@ export default async function PerfilPage() {
   const usuario = await requireUser();
   const supabase = await createClient();
 
-  const [{ data: perfil }, { data: metodos }] = await Promise.all([
+  const [{ data: perfil, error: perfilError }, { data: metodos }] = await Promise.all([
     supabase
       .from("profiles")
       .select("full_name, phone, delivery_location_id, delivery_locations(name, address, notes)")
@@ -25,6 +27,13 @@ export default async function PerfilPage() {
       .order("is_default", { ascending: false })
       .order("created_at"),
   ]);
+
+  // Sin esto, un fallo de conexión se veía igual que "todavía no elegiste tu punto de
+  // entrega": perfil quedaba null y la pantalla mostraba el selector inicial, como si la
+  // clienta nunca lo hubiera fijado. La escritura habría fallado de todas formas —el
+  // trigger que protege el punto no deja cambiarlo una vez fijado— pero la confusión de
+  // ver el selector otra vez no vale la pena.
+  if (esFalloDeConexion(perfilError)) return <EstadoSinConexion />;
 
   const punto = perfil?.delivery_locations as unknown as
     | { name: string; address: string; notes: string | null }

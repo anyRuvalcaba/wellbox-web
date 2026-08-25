@@ -7,16 +7,20 @@ import PublishButton from "./PublishButton";
 import DeleteMenuButton from "./DeleteMenuButton";
 import DuplicateWeekForm from "./DuplicateWeekForm";
 import { requireAdmin } from "@/lib/auth";
+import { esFalloDeConexion } from "@/lib/db-error";
+import EstadoSinConexion from "@/app/EstadoSinConexion";
 
 export const dynamic = "force-dynamic";
 
 export default async function MenuListPage() {
   await requireAdmin();
   const supabase = await createClient();
-  const { data: menus } = await supabase
+  const { data: menus, error: menusError } = await supabase
     .from("menus")
     .select("id, week_start_date, is_published")
     .order("week_start_date", { ascending: false });
+
+  if (esFalloDeConexion(menusError)) return <EstadoSinConexion contexto="admin" />;
 
   const menuIds = (menus ?? []).map((m) => m.id);
   const { data: days } =

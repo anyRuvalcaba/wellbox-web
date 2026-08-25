@@ -31,11 +31,23 @@ export const getSessionProfile = cache(async (): Promise<SessionProfile | null> 
 
   // getUser() valida el token contra Supabase. getSession() lee la cookie sin verificarla,
   // así que no sirve para decidir permisos.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) return null;
+  if (!user) {
+    // Mismo razonamiento que en proxy.ts: getUser() necesita red, getSession() no. Si
+    // hay una cookie de sesión pero no se pudo verificar, no se sabe si expiró o si
+    // falló la conexión — y "no hay sesión" ya no es una conclusión segura. Se lanza en
+    // vez de devolver null: requireUser()/requireAdmin() dejarían de redirigir a /login
+    // en silencio y, en cambio, esto lo atrapa el error.tsx de la ruta, con su botón de
+    // reintentar. El proxy (primera capa) ya deja pasar esta misma situación en vez de
+    // bloquear; esta es la segunda capa, y aquí sí hay manera de mostrar algo mejor que
+    // un redirect silencioso.
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      throw new Error("No se pudo verificar tu sesión. Puede ser un problema de conexión.");
+    }
+    return null;
+  }
 
   const { data: profile } = await supabase
     .from("profiles")

@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/auth";
 import { formatMXN } from "@/lib/format";
 import { TEXT_LINK } from "@/lib/ui";
+import { esFalloDeConexion } from "@/lib/db-error";
+import EstadoSinConexion from "@/app/EstadoSinConexion";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +25,10 @@ export default async function MisPedidosPage() {
     .from("orders")
     .select("id, created_at, total, payment_status, order_items(dish_name, day_label, quantity, unit_price)")
     .order("created_at", { ascending: false });
+
+  // Ya revisaba `error`, pero con un mensaje genérico. Se distingue el patrón
+  // verificado de fallo de conexión del componente compartido con el resto del sitio.
+  if (esFalloDeConexion(error)) return <EstadoSinConexion />;
 
   if (error) {
     return (

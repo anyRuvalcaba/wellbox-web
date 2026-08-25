@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { MenuDay, MenuDish, OptionGroup } from "@/lib/types";
 import MenuEditor from "./MenuEditor";
 import { requireAdmin } from "@/lib/auth";
+import { esFalloDeConexion } from "@/lib/db-error";
+import EstadoSinConexion from "@/app/EstadoSinConexion";
 
 export const dynamic = "force-dynamic";
 
@@ -15,12 +17,15 @@ export default async function MenuEditorPage({
   const { menuId } = await params;
   const supabase = await createClient();
 
-  const { data: menu } = await supabase
+  const { data: menu, error: menuError } = await supabase
     .from("menus")
     .select("id, week_start_date, is_published")
     .eq("id", menuId)
     .maybeSingle();
 
+  // Sin esto, un fallo de conexión llamaba a notFound() — el admin vería un 404 "esta
+  // semana no existe" para un menú que sí existe, y pensaría que rompió un link.
+  if (esFalloDeConexion(menuError)) return <EstadoSinConexion contexto="admin" />;
   if (!menu) notFound();
 
   const { data: days } = await supabase

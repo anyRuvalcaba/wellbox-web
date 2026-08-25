@@ -4,7 +4,7 @@
 - **Tipo:** feature
 - **Complejidad:** M
 - **Fecha:** 2026-08-25
-- **Estado:** DRAFT
+- **Estado:** DONE
 
 ## Historia
 
@@ -92,14 +92,14 @@ conexión que ya se recuperó.
 
 ## Criterios de Aceptación
 
-- [ ] **CA-1** — `esFalloDeConexion()` existe y distingue el patrón verificado.
-- [ ] **CA-2** — Las 5 páginas del flujo de cliente muestran un mensaje de conexión
+- [x] **CA-1** — `esFalloDeConexion()` existe y distingue el patrón verificado.
+- [x] **CA-2** — Las 5 páginas del flujo de cliente muestran un mensaje de conexión
       distinto del vacío legítimo.
-- [ ] **CA-3** — Las 6 páginas del admin hacen lo mismo.
-- [ ] **CA-4** — `POST /api/orders`: cualquier fallo de conexión durante la creación del
+- [x] **CA-3** — Las 6 páginas del admin hacen lo mismo.
+- [x] **CA-4** — `POST /api/orders`: cualquier fallo de conexión durante la creación del
       pedido responde 503 con mensaje que aclara que no se cobró nada.
-- [ ] **CA-5** — Existen `error.tsx` para `/pedido`, `/admin` y uno global.
-- [ ] **CA-6** — Verificado con una caída real simulada (Supabase apuntando a un host
+- [x] **CA-5** — Existen `error.tsx` para `/pedido`, `/admin` y uno global.
+- [x] **CA-6** — Verificado con una caída real simulada (Supabase apuntando a un host
       inalcanzable), no solo revisado en el código.
 
 ## Consideraciones de Seguridad
@@ -116,8 +116,63 @@ conexión que ya se recuperó.
 
 ## Pendientes Abiertos y Gaps Detectados
 
-> Se completa durante la implementación.
+**Hallazgo mayor, fuera del alcance original del spec.** Verificando CA-2 contra una
+caída real (`/pedido` con Supabase apuntando a un host inalcanzable), apareció algo más
+grave que las 11 páginas: **`proxy.ts` y `lib/auth.ts` expulsaban a cualquiera al
+login** cuando `getUser()` fallaba por conexión — sin distinguir "no hay sesión" de "no
+se pudo verificar". Le pasaba a admins y a clientas en pleno checkout, que es
+exactamente el escenario que la rúbrica pregunta.
+
+Corrección en las dos capas: `getSession()` lee la cookie sin red (confirmado leyendo el
+código fuente de `@supabase/auth-js`, no supuesto); si encuentra una sesión pero
+`getUser()` no pudo verificarla, ya no se concluye "no hay sesión":
+- **`proxy.ts`** (primera capa): deja pasar la petición en vez de bloquear.
+- **`lib/auth.ts`** (segunda capa): lanza una excepción — la atrapan los `error.tsx` que
+  ya se habían agregado, con su botón de reintentar, en vez de un redirect silencioso.
+
+**Verificación de esta corrección específica.** No se pudo probar contra la app corriendo
+completa con una caída real: cambiar `NEXT_PUBLIC_SUPABASE_URL` a un host inalcanzable
+también cambia el nombre de cookie que `@supabase/ssr` espera (se deriva de la
+referencia del proyecto), así que el cliente deja de encontrar la cookie real por una
+razón ajena a la que se quería probar — y no se puede usar `/etc/hosts` para simular la
+caída manteniendo la URL real, por estar fuera de lo que se debe modificar sin
+autorización explícita de la usuaria.
+
+En su lugar se armó una prueba aislada, sin tocar la app en ejecución: un script que usa
+la URL real del proyecto (para que el nombre de cookie coincida) y una cookie de sesión
+real capturada de una petición autenticada, con `fetch` interceptado para fallar solo
+quirúrgicamente. Resultado:
+
+```
+── con red ──
+getUser() con red → user: prueba.clienta@wellbox-test.mx
+── sin red ──
+getSession() sin red → session: ENCONTRADA (local, sin red)
+getUser() sin red    → user: null (como se esperaba, necesita red)
+```
+
+Confirma exactamente la premisa del arreglo. El token usado nunca se escribió a un
+archivo: viajó por variable de entorno y el script se borró al terminar.
+
+**Regresión verificada por separado:** una petición sin ninguna cookie sigue
+redirigiendo a `/login` (`curl` directo contra el servidor, sin credenciales) — el
+arreglo no abre una puerta a quien de verdad no tiene sesión.
+
+**Detalle encontrado de paso, fuera de alcance:** `/pedido/mis-pedidos` muestra los
+estados de pago que llegaron con Stripe (`paid`, `failed`, `cancelled`) sin traducir.
+Registrado como T-014.
 
 ## Resultados
 
-> Se completa al cerrar.
+- **Fecha de cierre:** 2026-08-25
+- **Rama:** `feature/manejo-errores`
+- 11 páginas del servidor ahora distinguen "vacío" de "falló la conexión"
+- `POST /api/orders`: tres puntos de fallo pasan de 500 genérico a 503 con mensaje de
+  "no se te cobró nada" cuando el patrón es de conexión
+- Tres `error.tsx` (`/pedido`, `/admin`, global) usando `unstable_retry` — el contrato
+  correcto en Next 16, distinto de versiones anteriores
+- **El hallazgo más importante de la fase no estaba en el spec original**: el proxy y el
+  DAL expulsaban al login a cualquiera durante una caída, en vez de mostrar un error.
+  Corregido en las dos capas y verificado con una prueba aislada que reproduce la
+  premisa exacta (`getSession()` local, `getUser()` necesita red) contra el proyecto
+  real, sin tocar configuración del sistema.
