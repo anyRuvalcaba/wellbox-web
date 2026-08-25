@@ -1,11 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import SettingsForm from "./SettingsForm";
+import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 const KEYS = ["bank_clabe", "bank_name", "bank_holder", "bank_reference_note", "whatsapp_number"] as const;
 
 export default async function AjustesPage() {
+  await requireAdmin();
   const supabase = await createClient();
   const { data } = await supabase.from("settings").select("key, value").in("key", KEYS);
 

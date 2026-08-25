@@ -4,7 +4,7 @@
 - **Tipo:** security-patch + feature
 - **Complejidad:** L
 - **Fecha:** 2026-08-24
-- **Estado:** DRAFT
+- **Estado:** IN PROGRESS
 
 ## Historia
 
@@ -27,7 +27,8 @@ descrito abajo.
 
 ## El problema de seguridad actual
 
-Las nueve políticas de escritura en `supabase/migrations/0001_init.sql` están escritas así:
+Doce políticas —diez sobre tablas y dos sobre Storage— en
+`supabase/migrations/0001_init.sql` están escritas así:
 
 ```sql
 create policy "authenticated manage menus" on menus
@@ -49,23 +50,22 @@ sobre `payment-proofs` (comprobantes de pago con datos bancarios de clientes).
 
 ## Criterios de Aceptación
 
-- [ ] **CA-1** — Existe `profiles`, ligada 1:1 a `auth.users`, con `role` restringido a
+- [x] **CA-1** — Existe `profiles`, ligada 1:1 a `auth.users`, con `role` restringido a
       `customer | admin` y default `customer`.
-- [ ] **CA-2** — Al registrarse un usuario nuevo, su fila en `profiles` se crea
+- [x] **CA-2** — Al registrarse un usuario nuevo, su fila en `profiles` se crea
       automáticamente con rol `customer`.
-- [ ] **CA-3** — Un usuario autenticado con rol `customer` **no puede** modificar su
+- [x] **CA-3** — Un usuario autenticado con rol `customer` **no puede** modificar su
       propio `role`, ni por API ni por SQL directo con su token.
-- [ ] **CA-4** — Las nueve políticas de escritura exigen rol `admin`, no solo sesión
-      autenticada.
-- [ ] **CA-5** — Un `customer` puede leer únicamente sus propios pedidos.
-- [ ] **CA-6** — Un `admin` puede leer y actualizar todos los pedidos.
-- [ ] **CA-7** — El registro público funciona end-to-end: alta, confirmación, login,
+- [x] **CA-4** — Las doce políticas exigen rol `admin`, no solo sesión autenticada.
+- [x] **CA-5** — Un `customer` puede leer únicamente sus propios pedidos.
+- [x] **CA-6** — Un `admin` puede leer y actualizar todos los pedidos.
+- [x] **CA-7** — El registro público funciona end-to-end: alta, confirmación, login,
       logout.
-- [ ] **CA-8** — `/admin/*` responde con redirección a login para un `customer`
+- [x] **CA-8** — `/admin/*` responde con redirección a login para un `customer`
       autenticado, no solo para usuarios anónimos.
-- [ ] **CA-9** — Existe una pantalla de administración de usuarios donde un `admin`
+- [x] **CA-9** — Existe una pantalla de administración de usuarios donde un `admin`
       puede ver la lista y cambiar roles.
-- [ ] **CA-10** — Los comprobantes en `payment-proofs` solo son legibles por `admin` y
+- [x] **CA-10** — Los comprobantes en `payment-proofs` solo son legibles por `admin` y
       por el dueño del pedido.
 
 ## Consideraciones de Seguridad
@@ -130,8 +130,8 @@ create trigger profiles_protect_role before update on profiles
 alter table orders add column user_id uuid references auth.users(id) on delete set null;
 ```
 
-Las nueve políticas `for all to authenticated using (true)` se reemplazan por
-`for all to authenticated using (public.is_admin()) with check (public.is_admin())`.
+Las diez políticas de tabla `to authenticated using (true)` se reemplazan por
+equivalentes que exigen `public.is_admin()`, y las dos de Storage se acotan igual.
 
 ## Decisiones de Diseño
 
@@ -150,15 +150,19 @@ compare contra el valor anterior de la fila requiere subconsulta sobre la misma 
 que se está evaluando. El trigger revierte el cambio de forma determinista y es
 verificable con una prueba directa.
 
-## Decisiones Abiertas
+## Decisiones Resueltas
 
 - **AD-1 — ¿Se permite pedir como invitado?** Hoy cualquiera puede crear un pedido sin
   cuenta. Si se exige login, el flujo queda más limpio, `orders.user_id` puede ser `not
   null` y el checkout se pre-llena del perfil; pero se pierde conversión de clientes que
   no se quieren registrar. Si se permite invitado, `user_id` queda nullable y hay que
-  mantener dos caminos en el checkout. **Recomendación: exigir login**, por el entregable
-  "login y registro operativos" y porque simplifica CA-5.
-- **AD-2 — Pedidos históricos.** Los pedidos ya existentes quedan con `user_id` nulo. Se
+  mantener dos caminos en el checkout. **RESUELTO 2026-08-24: se exige login.**
+  `orders.user_id` se llena siempre en pedidos nuevos y se elimina la política que permitía a `anon`
+  crear pedidos.
+- **AD-2 (RESUELTO) — Pedidos históricos.** Nota: por esto la columna queda *nullable*
+  en el DDL. La obligatoriedad se aplica en la política de `insert`
+  (`with check (user_id = auth.uid())`), que es imposible de satisfacer con `null`.
+  Declararla `not null` haría fallar la migración con los pedidos que ya existen. Los pedidos ya existentes quedan con `user_id` nulo. Se
   propone dejarlos así (visibles solo para admin) en lugar de intentar ligarlos por
   teléfono.
 
@@ -170,7 +174,7 @@ verificable con una prueba directa.
 
 ## Riesgos y Deuda Técnica
 
-- La migración toca las nueve políticas existentes. Un error aquí no rompe el build:
+- La migración toca las doce políticas existentes. Un error aquí no rompe el build:
   se manifiesta como datos accesibles o inaccesibles en runtime. **Mitigación:** las
   pruebas de CA-3, CA-4 y CA-5 se escriben antes de aplicar la migración a producción.
 - `handle_new_user` se dispara dentro de la transacción de alta de `auth.users`. Si
@@ -178,8 +182,106 @@ verificable con una prueba directa.
 
 ## Pendientes Abiertos y Gaps Detectados
 
-> Se completa durante la implementación.
+**Bug encontrado y corregido durante la implementación — bootstrap del primer admin.**
+La primera versión de `protect_role()` revertía cualquier cambio de `role` cuando
+`is_admin()` era falso. En un contexto de servidor (migración, editor SQL, service key)
+`auth.uid()` es nulo, así que `is_admin()` devolvía falso y **el trigger se bloqueaba a
+sí mismo**: no existía forma de crear la primera cuenta admin.
+
+Corrección: el trigger solo vigila peticiones que traen identidad de usuario
+(`auth.uid() is not null`). Los contextos de servidor ya saltan RLS por definición, y
+una petición `anon` no alcanza el trigger porque la política de update sobre `profiles`
+es `to authenticated`. Se agregó la prueba `ANON OK` para verificar justamente que ese
+camino no es explotable desde el cliente.
+
+Lo detectó el entorno local de pruebas antes de tocar cualquier base real.
+
+**Pendiente de la fase de aplicación:** la cuenta admin actual del equipo queda como
+`customer` al correr la migración. Hay que promoverla a mano desde el editor SQL de
+Supabase:
+```sql
+update profiles set role = 'admin' where id = '<uuid de la cuenta>';
+```
+
+**Fuera de alcance de T-001 (va en T-002):** `profiles.delivery_location_id` y su
+trigger de inmutabilidad.
+
+**Segundo hallazgo del linter de Supabase — `revoke from public` ≠ `revoke from anon`.**
+0004 revocó de `PUBLIC` y el linter siguió marcando `is_admin()` y
+`delete_incomplete_order()` como llamables sin sesión. Supabase tiene
+`alter default privileges in schema public grant execute on functions to anon`, así que
+cada función nace con un permiso explícito a nombre de `anon` **además** del implícito
+de `PUBLIC`; revocar de `PUBLIC` no toca el explícito. Corregido en 0005.
+
+El entorno local no lo detectó porque no reproducía ese `alter default privileges`. Se
+agregó a `bootstrap.sql`, la prueba falló igual que en Supabase, y después se corrigió —
+que es el orden correcto.
+
+**La política de contraseñas del proyecto cambió durante la verificación** (8 caracteres,
+mayúscula, minúscula y dígito). El formulario de registro solo revisaba el largo, así que
+una contraseña válida para el formulario podía ser rechazada por el servidor con un error
+genérico. Ya están alineados.
 
 ## Resultados
 
-> Se completa al cerrar.
+- **Fecha de cierre:** 2026-08-24 (implementación); verificación en Supabase pendiente
+- **Rama:** `security/usuarios-roles-rls`
+
+### CAs cubiertos por prueba automatizada (`npm run db:verify`)
+
+CA-2, CA-3, CA-4, CA-5, CA-6, más dos controles que no estaban en el spec original y
+salieron del modelado STRIDE: que no se pueda crear un pedido a nombre ajeno
+(*spoofing*), y que el escape de servidor de `protect_role()` no sea explotable desde
+una sesión anónima.
+
+### Verificación end-to-end contra Supabase — 2026-08-24
+
+Migraciones 0003 y 0004 aplicadas al proyecto `zkfeuibnjfbqiwpuaifh`. Servidor local
+apuntando a esa base, con una cuenta de prueba creada desde `/registro`.
+
+| CA | Resultado |
+|---|---|
+| CA-1 | `profiles` creada; el relleno incorporó la cuenta previa del equipo |
+| CA-2 | El alta creó el perfil sola, rol `customer`, con nombre y teléfono del registro |
+| CA-7 | Registro completo sin confirmación de correo (queda desactivada); sesión inmediata |
+| CA-8 | Con sesión de cliente, `/admin` y `/admin/usuarios` redirigen a `/pedido` |
+| CA-9 | La pantalla carga, lista a los dos usuarios y bloquea cambiarse el rol a uno mismo |
+| CA-5 | **La prueba más contundente:** con 3 pedidos reales en la base, la clienta ve 0 |
+| CA-6 | La misma cuenta promovida a admin ve los 3 pedidos completos |
+
+La consulta de `/pedido/mis-pedidos` no filtra por usuario: el aislamiento lo aplica
+únicamente la política RLS. Que devuelva 0 con 3 pedidos presentes demuestra que la
+política está haciendo el trabajo.
+
+### CA-10 — verificado solo a nivel estructura
+
+Las políticas de Storage existen y están acotadas al dueño del objeto. **No se probó una
+subida real** porque el único menú publicado es del 6 al 10 de julio de 2026, ya pasado
+su cierre, así que no se puede completar un pedido ni subir comprobante. Queda como
+pendiente en cuanto se cargue un menú con fechas vigentes.
+
+### Deuda técnica generada
+
+`POST /api/orders` sigue insertando el pedido y sus renglones en llamadas separadas, sin
+transacción. Antes de esta migración, el rollback era un `delete` directo; ahora las
+políticas ya no permiten borrar pedidos, así que se agregó
+`delete_incomplete_order()` — una función acotada que solo borra un pedido propio y sin
+renglones. **Es un parche.** La solución real es que crear el pedido sea una sola
+transacción del lado de Postgres, y queda en T-003, donde de todas formas hace falta
+para descontar stock de forma atómica.
+
+### Cambios de alcance durante la implementación
+
+- `profiles` ganó la columna `email`, copiada de `auth.users`, porque la pantalla de
+  administración de usuarios (CA-9) necesita mostrarla y `auth.users` no es legible con
+  la anon key desde el cliente.
+- El login de admin y el de clientas se unificaron en `/login`, con redirección según
+  rol. `/admin/login` redirige ahí para no romper el enlace que el equipo ya tiene.
+- La lectura de `settings` dejó de ser anónima: pedir ahora exige cuenta, así que no hay
+  razón para exponer los datos bancarios sin sesión.
+
+### Lecciones aprendidas
+
+El entorno local de Postgres se pagó solo el mismo día: detectó que `protect_role()` se
+bloqueaba a sí misma e impedía crear el primer admin. Ese bug habría aparecido en la base
+real, como un `update` que "funciona" pero no cambia nada.

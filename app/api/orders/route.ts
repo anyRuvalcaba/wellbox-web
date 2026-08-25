@@ -23,14 +23,29 @@ interface OrderPayload {
 export async function POST(request: Request) {
   const body = (await request.json()) as OrderPayload;
 
+  const supabase = await createClient();
+
+  // La identidad sale de la sesión, nunca del body. Si el cliente pudiera mandar su
+  // propio user_id, podría crear pedidos a nombre de otra persona. La política de
+  // insert de `orders` exige user_id = auth.uid(), así que la base rechazaría el
+  // intento de todas formas — esto solo devuelve un error entendible antes de llegar.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json(
+      { error: "Necesitas iniciar sesión para hacer un pedido." },
+      { status: 401 }
+    );
+  }
+
   if (!body.customer?.name?.trim() || !body.customer?.phone?.trim()) {
     return NextResponse.json({ error: "Nombre y teléfono son obligatorios." }, { status: 400 });
   }
   if (!body.items || body.items.length === 0) {
     return NextResponse.json({ error: "El pedido no tiene platillos." }, { status: 400 });
   }
-
-  const supabase = await createClient();
 
   const dishIds = body.items.map((i) => i.dishId);
   const { data: dishes, error: dishesError } = await supabase
@@ -122,6 +137,7 @@ export async function POST(request: Request) {
       payment_status: body.transferProofPath ? "transfer_uploaded" : "pending",
       transfer_proof_url: body.transferProofPath || null,
       menu_id: body.menuId,
+      user_id: user.id,
     })
     .select("id")
     .single();
@@ -146,7 +162,7 @@ export async function POST(request: Request) {
       .single();
 
     if (itemError || !orderItem) {
-      await supabase.from("orders").delete().eq("id", order.id);
+      await supabase.rpc("delete_incomplete_order", { order_id: order.id });
       return NextResponse.json({ error: "No se pudo guardar el pedido." }, { status: 500 });
     }
 
@@ -160,7 +176,7 @@ export async function POST(request: Request) {
         }))
       );
       if (optionsError) {
-        await supabase.from("orders").delete().eq("id", order.id);
+        await supabase.rpc("delete_incomplete_order", { order_id: order.id });
         return NextResponse.json({ error: "No se pudo guardar el pedido." }, { status: 500 });
       }
     }

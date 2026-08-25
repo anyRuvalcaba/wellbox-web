@@ -5,10 +5,12 @@ import { TEXT_LINK } from "@/lib/ui";
 import NewMenuForm from "./NewMenuForm";
 import PublishButton from "./PublishButton";
 import DeleteMenuButton from "./DeleteMenuButton";
+import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function MenuListPage() {
+  await requireAdmin();
   const supabase = await createClient();
   const { data: menus } = await supabase
     .from("menus")

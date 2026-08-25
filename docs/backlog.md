@@ -14,6 +14,7 @@ Cada fase se mapea a un entregable de la evaluación técnica del curso
 | T-005 | Suite de pruebas con Vitest | PENDIENTE | `npm test` en verde |
 | T-006 | README y `npm audit` | PENDIENTE | Calidad del repositorio |
 | T-007 | Deploy a Vercel y repo público | PENDIENTE | URL pública con SSL |
+| T-008 | Preparación de la defensa técnica | PENDIENTE | Justificación verbal |
 
 ---
 
@@ -53,15 +54,19 @@ realmente. Es el mismo criterio que ya usa `order_items` con `dish_name` y `unit
 puede contar cuántos clientes y cuántas entregas hay por punto. Sale de una sola
 consulta agregada; no requiere tabla extra.
 
-**Decisión abierta AD-3 — ¿el punto de entrega es inmutable?** El requisito dice que no
-cambia porque es el lugar de trabajo. Se puede aplicar de dos formas:
-1. Inmutable en la base: una vez elegido, solo un admin lo cambia.
-2. Editable por la clienta desde su perfil, con el pedido guardando el snapshot.
+**AD-3 (RESUELTO 2026-08-24) — El punto de entrega es inmutable para la clienta.**
 
-**Recomendación: opción 2.** "No cambia" es una expectativa de negocio, no una
-invariante — la gente cambia de trabajo. Con la opción 1, cada cambio de empleo se
-convierte en un ticket de soporte. El snapshot en `orders` ya protege el historial, que
-es la razón real por la que importaba la inmutabilidad.
+Se aplica así: la clienta lo elige **una sola vez**, al registrarse. A partir de ese
+momento solo un `admin` puede cambiarlo desde el panel.
+
+Técnicamente es el mismo patrón que protege `profiles.role`: un trigger `BEFORE UPDATE`
+revierte el cambio salvo que `public.is_admin()` sea verdadero. La única excepción es el
+primer valor — si `delivery_location_id` está en `NULL`, la clienta puede fijarlo. Sin
+esa excepción, el registro self-service no podría completarse.
+
+El snapshot `orders.delivery_location_name` se mantiene de todas formas: aunque el punto
+sea inmutable para la clienta, un admin sí lo puede cambiar, y los pedidos anteriores
+deben seguir mostrando dónde se entregaron.
 
 ### Métodos de pago
 
@@ -126,3 +131,38 @@ Cobertura mínima propuesta para WellBox:
 El repo de clase tiene 169 pruebas de backend y **cero de frontend**, aunque el syllabus
 del curso pide "test suite covering components and hooks". Cubrir también componentes es
 una ventaja frente a la referencia.
+
+
+---
+
+## T-007 — Riesgo: la base de datos se pausa sola
+
+Los proyectos de Supabase en plan gratuito pasan a `INACTIVE` tras varios días sin
+actividad. Al 2026-08-24 los tres proyectos de la cuenta están pausados, incluido
+`wellbox` (`zkfeuibnjfbqiwpuaifh`).
+
+Es el mismo riesgo del que advierte el documento de evaluación sobre Render, pero peor:
+Render despierta solo con una visita en ~30 segundos; **Supabase pausado no despierta
+solo** — hay que restaurarlo a mano desde el dashboard y tarda varios minutos.
+
+Mitigación: restaurar el proyecto varios días antes de la evaluación y tocarlo a diario
+hasta entonces. Verificar la URL de producción el mismo día, no solo 30 minutos antes.
+
+---
+
+## T-008 — Preparación de la defensa técnica
+
+Sesión aparte, al final del proyecto. No es documentación entregable: es práctica de
+explicar en voz alta y sin leer.
+
+- Recorrer el flujo de datos de extremo a extremo (dimensión "comprensión de la
+  arquitectura" de la rúbrica)
+- Justificar cada decisión contra su alternativa: Next.js vs. React + Express,
+  Postgres vs. MongoDB, Supabase Auth vs. JWT propio, TypeScript vs. JavaScript,
+  puntos de entrega fijos vs. direcciones libres
+- Preparar el recorrido de las pruebas: qué cubre cada una y por qué esa y no otra
+- Practicar cronometrado, 10 minutos máximo
+- Tener lista una respuesta honesta a "si lo rehicieras, ¿qué cambiarías?"
+
+Insumo listo: `docs/specs/` guarda el porqué de cada decisión en el momento en que se
+tomó, que es más confiable que reconstruirlo de memoria seis semanas después.

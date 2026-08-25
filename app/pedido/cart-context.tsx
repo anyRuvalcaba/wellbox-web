@@ -60,17 +60,35 @@ function readInitialState(): CartState {
 
 const initialState: CartState = { menuId: null, items: {}, customer: emptyCustomer };
 
-export function CartProvider({ children }: { children: ReactNode }) {
+export function CartProvider({
+  children,
+  nombreCuenta = "",
+  telefonoCuenta = "",
+}: {
+  children: ReactNode;
+  nombreCuenta?: string;
+  telefonoCuenta?: string;
+}) {
   // Always start from the SSR-safe default so the first client render matches
   // the server render; sessionStorage is only readable after mount.
   const [state, setState] = useState<CartState>(initialState);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    const inicial = readInitialState();
+    // Pre-llena con los datos de la cuenta, pero lo que la clienta ya escribió para
+    // este pedido manda: puede estar pidiendo a nombre de alguien más.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration from sessionStorage, not derivable during render
-    setState(readInitialState());
+    setState({
+      ...inicial,
+      customer: {
+        ...inicial.customer,
+        name: inicial.customer.name || nombreCuenta,
+        phone: inicial.customer.phone || telefonoCuenta,
+      },
+    });
     setHydrated(true);
-  }, []);
+  }, [nombreCuenta, telefonoCuenta]);
 
   useEffect(() => {
     if (!hydrated) return;
