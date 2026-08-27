@@ -23,7 +23,9 @@ export default function AccountMenu({ email, esAdmin }: { email: string | null; 
   async function salir() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push("/pedido");
+    // Al inicio y no al menú: cerrar sesión es salirse, y el menú es una pantalla de
+    // "ya estoy pidiendo". Quien cierra sesión espera aterrizar en la portada.
+    router.push("/");
     router.refresh();
   }
 

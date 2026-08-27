@@ -117,6 +117,9 @@ export default async function ConfirmacionPage({
         <Link href="/pedido" className={TEXT_LINK}>
           Hacer otro pedido
         </Link>
+        <Link href="/" className={TEXT_LINK}>
+          Volver al inicio
+        </Link>
       </div>
     </div>
   );

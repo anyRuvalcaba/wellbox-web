@@ -74,8 +74,11 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Con sesión ya iniciada, /login y /registro no tienen nada que ofrecer. Se manda al
+  // inicio y no al menú: desde la portada se ve el carrito y el menú de cuenta, así que
+  // no se pierde nada, y es el destino que espera quien escribe la dirección a mano.
   if (RUTAS_DE_AUTH.includes(pathname) && user) {
-    return redirigirA(request, "/pedido");
+    return redirigirA(request, "/");
   }
 
   return response;
