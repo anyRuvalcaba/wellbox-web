@@ -8,10 +8,13 @@ import EstadoSinConexion from "@/app/EstadoSinConexion";
 
 export const dynamic = "force-dynamic";
 
-const ETIQUETA_PAGO: Record<string, string> = {
-  pending: "Pago pendiente",
-  transfer_uploaded: "Comprobante enviado",
-  confirmed: "Pago confirmado",
+const ESTADO_PAGO: Record<string, { etiqueta: string; clase: string }> = {
+  pending: { etiqueta: "Pago pendiente", clase: "text-olive-dark bg-cream-dark/60" },
+  transfer_uploaded: { etiqueta: "Comprobante enviado", clase: "text-olive-dark bg-cream-dark/60" },
+  confirmed: { etiqueta: "Pago confirmado", clase: "text-olive-dark bg-cream-dark/60" },
+  paid: { etiqueta: "Pagado", clase: "text-green-800 bg-green-100" },
+  failed: { etiqueta: "Pago fallido", clase: "text-red-800 bg-red-100" },
+  cancelled: { etiqueta: "Cancelado", clase: "text-red-800 bg-red-100" },
 };
 
 export default async function MisPedidosPage() {
@@ -63,8 +66,12 @@ export default async function MisPedidosPage() {
                 year: "numeric",
               })}
             </time>
-            <span className="text-xs font-semibold text-olive-dark bg-cream-dark/60 rounded-full px-3 py-1">
-              {ETIQUETA_PAGO[pedido.payment_status] ?? pedido.payment_status}
+            <span
+              className={`text-xs font-semibold rounded-full px-3 py-1 ${
+                ESTADO_PAGO[pedido.payment_status]?.clase ?? "text-olive-dark bg-cream-dark/60"
+              }`}
+            >
+              {ESTADO_PAGO[pedido.payment_status]?.etiqueta ?? pedido.payment_status}
             </span>
           </header>
 
