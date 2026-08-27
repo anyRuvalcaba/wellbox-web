@@ -125,7 +125,7 @@ function DayCard({
       </div>
 
       {!orderable ? (
-        <p className="text-sm text-brown/40">El periodo para pedir este día ya cerró (6pm del día anterior).</p>
+        <p className="text-sm text-brown/40">Este día ya cerró. Los pedidos se cierran un día antes a las 6pm.</p>
       ) : (
         <div className="flex flex-col gap-3">
           {dishes.map((dish) => (

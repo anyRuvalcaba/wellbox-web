@@ -307,8 +307,8 @@ export default async function HomePage() {
 
                 <div className="flex flex-wrap items-center justify-between gap-4 mt-6 p-5 bg-cream border border-peach rounded-2xl">
                   <p className="text-sm text-brown/80 max-w-[52ch]">
-                    Pides los días que quieras: cada día cierra a las 6pm del día
-                    anterior.
+                    Pides los días que quieras, los pedidos se cierran un día antes a
+                    las 6pm.
                   </p>
                   <Link href="/registro" className={`${CTA_PRIMARY} whitespace-nowrap`}>
                     Crear cuenta para pedir
