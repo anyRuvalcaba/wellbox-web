@@ -413,17 +413,20 @@ export default async function HomePage() {
                 gustaron regresan, ya sea la semana completa o un platillo suelto.
               </p>
             </div>
-            <div
-              className="grid gap-3 sm:gap-4"
-              style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gridAutoRows: "clamp(140px, 17vw, 200px)" }}
-            >
-              {FOTOS_GALERIA.map((foto, i) => (
-                <div
-                  key={foto.src}
-                  className="relative rounded-2xl overflow-hidden"
-                  style={i === 0 ? { gridRow: "span 2" } : i === 5 ? { gridColumn: "span 2" } : undefined}
-                >
-                  <Image src={foto.src} alt={foto.alt} fill sizes="(min-width: 640px) 320px, 50vw" className="object-cover" />
+            {/* Retícula pareja: todas del mismo tamaño y la misma proporción. La versión
+                anterior mezclaba una que ocupaba dos filas con otra que ocupaba dos
+                columnas, y en pantallas anchas el número de columnas cambiaba y dejaba
+                huecos con una foto suelta al final. */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+              {FOTOS_GALERIA.map((foto) => (
+                <div key={foto.src} className="relative aspect-[4/3] rounded-2xl overflow-hidden bg-cream-dark">
+                  <Image
+                    src={foto.src}
+                    alt={foto.alt}
+                    fill
+                    sizes="(min-width: 768px) 33vw, 50vw"
+                    className="object-cover"
+                  />
                 </div>
               ))}
             </div>
