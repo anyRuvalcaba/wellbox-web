@@ -44,7 +44,11 @@ export default function RestablecerContrasenaPage() {
     const { error: updateError } = await supabase.auth.updateUser({ password });
 
     if (updateError) {
-      setError("No se pudo cambiar la contraseña. Intenta de nuevo.");
+      // Un "no se pudo, intenta de nuevo" genérico deja a la persona atorada sin saber
+      // qué corregir: reintentar lo mismo va a fallar igual. Se traducen los motivos
+      // que Supabase devuelve de verdad, y si aparece uno nuevo se muestra su mensaje
+      // tal cual en vez de esconderlo.
+      setError(traducirErrorDeContrasena(updateError.message));
       setLoading(false);
       return;
     }
@@ -121,4 +125,29 @@ export default function RestablecerContrasenaPage() {
       </button>
     </form>
   );
+}
+
+// Los mensajes de Supabase llegan en inglés. Se traducen los que sí ocurren en la
+// práctica; cualquier otro se muestra tal cual, porque un motivo raro en inglés sigue
+// siendo más útil que "intenta de nuevo".
+function traducirErrorDeContrasena(mensaje: string): string {
+  const m = mensaje.toLowerCase();
+
+  if (m.includes("different from the old password")) {
+    return "Esa es la contraseña que ya tenías. Elige una distinta.";
+  }
+  if (m.includes("session") || m.includes("token")) {
+    return "El enlace ya venció. Pide uno nuevo desde “¿Olvidaste tu contraseña?”.";
+  }
+  if (m.includes("weak") || m.includes("pwned") || m.includes("compromised")) {
+    return "Esa contraseña aparece en filtraciones conocidas. Elige otra.";
+  }
+  if (m.includes("at least") || m.includes("should contain") || m.includes("password")) {
+    return "Esa contraseña no cumple los requisitos: mínimo 8 caracteres, con mayúscula, minúscula y número.";
+  }
+  if (m.includes("for security purposes") || m.includes("rate")) {
+    return "Demasiados intentos seguidos. Espera un minuto y vuelve a intentar.";
+  }
+
+  return `No se pudo cambiar la contraseña: ${mensaje}`;
 }
