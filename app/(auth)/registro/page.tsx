@@ -143,8 +143,8 @@ export default function RegistroPage() {
           ))}
         </select>
         <p className="text-xs text-brown/50 mt-1">
-          Es tu lugar de trabajo, así que queda fijo. Si cambias de sede, escríbenos y lo
-          ajustamos.
+          Es el lugar donde te entregamos. Si cambias de sede, puedes actualizarlo
+          después desde tu perfil.
         </p>
       </div>
       <Field
