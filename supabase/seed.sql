@@ -68,10 +68,13 @@ join (values
   ('Queso oaxaca', 1)
 ) as c(label, position) on true;
 
+-- Datos de DEMOSTRACIÓN, no los reales del negocio. Este archivo vive en un repo
+-- público: los datos bancarios verdaderos se capturan desde /admin/ajustes, que los
+-- guarda en la base y nunca en el código.
 insert into settings (key, value) values
-  ('bank_clabe', '012180015705728739'),
-  ('bank_name', 'BBVA'),
-  ('bank_holder', 'Ana L Ruvalcaba Llamas'),
-  ('bank_reference_note', 'No olvides enviar tu comprobante aquí mismo e incluir tu nombre como referencia.'),
-  ('whatsapp_number', '524498556899')
+  ('bank_clabe', '000000000000000000'),
+  ('bank_name', 'Banco de Demostración'),
+  ('bank_holder', 'WellBox (cuenta de prueba)'),
+  ('bank_reference_note', 'Datos de demostración: no realices transferencias a esta cuenta.'),
+  ('whatsapp_number', '520000000000')
 on conflict (key) do update set value = excluded.value;

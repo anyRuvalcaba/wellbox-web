@@ -52,7 +52,7 @@ export default function SettingsForm({ initialValues }: { initialValues: Record<
       </div>
 
       <h2 className="font-semibold mt-2">Notificaciones</h2>
-      {field("whatsapp_number", "WhatsApp del negocio", "Ej. 524498556899")}
+      {field("whatsapp_number", "WhatsApp del negocio", "Ej. 5215512345678")}
 
       <button type="submit" disabled={saving} className={`self-start ${BTN_PRIMARY}`}>
         {saving ? "Guardando..." : "Guardar cambios"}
