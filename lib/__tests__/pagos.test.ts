@@ -7,11 +7,11 @@ function metodo(datos: Partial<MetodoPago>): MetodoPago {
 
 describe("describirMetodo", () => {
   it("usa la etiqueta personalizada cuando existe", () => {
-    expect(describirMetodo(metodo({ label: "Mi BBVA" }))).toBe("Mi BBVA");
+    expect(describirMetodo(metodo({ label: "Mi banco" }))).toBe("Mi banco");
   });
 
   it("recorta espacios de la etiqueta personalizada", () => {
-    expect(describirMetodo(metodo({ label: "  Mi BBVA  " }))).toBe("Mi BBVA");
+    expect(describirMetodo(metodo({ label: "  Mi banco  " }))).toBe("Mi banco");
   });
 
   it("una etiqueta de solo espacios no cuenta como etiqueta", () => {

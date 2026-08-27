@@ -149,7 +149,7 @@ una ventaja frente a la referencia.
 
 Los proyectos de Supabase en plan gratuito pasan a `INACTIVE` tras varios días sin
 actividad. Al 2026-08-24 los tres proyectos de la cuenta están pausados, incluido
-`wellbox` (`zkfeuibnjfbqiwpuaifh`).
+`wellbox` (`<tu-proyecto>`).
 
 Es el mismo riesgo del que advierte el documento de evaluación sobre Render, pero peor:
 Render despierta solo con una visita en ~30 segundos; **Supabase pausado no despierta

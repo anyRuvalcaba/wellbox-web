@@ -236,7 +236,7 @@ una sesión anónima.
 
 ### Verificación end-to-end contra Supabase — 2026-08-24
 
-Migraciones 0003 y 0004 aplicadas al proyecto `zkfeuibnjfbqiwpuaifh`. Servidor local
+Migraciones 0003 y 0004 aplicadas al proyecto `<tu-proyecto>`. Servidor local
 apuntando a esa base, con una cuenta de prueba creada desde `/registro`.
 
 | CA | Resultado |

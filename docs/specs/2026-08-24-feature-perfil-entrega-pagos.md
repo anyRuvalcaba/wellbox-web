@@ -88,7 +88,7 @@ create table payment_methods (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   type text not null check (type in ('card','cash','transfer')),
-  label text,                    -- "Mi BBVA", "Efectivo"
+  label text,                    -- "Mi banco", "Efectivo"
   card_brand text,               -- visa | mastercard | amex
   card_last4 text check (card_last4 ~ '^[0-9]{4}$'),
   is_default boolean not null default false,

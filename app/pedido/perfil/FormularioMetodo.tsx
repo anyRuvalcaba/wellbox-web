@@ -78,7 +78,7 @@ export default function FormularioMetodo({
           id="etiqueta"
           value={etiqueta}
           onChange={(e) => setEtiqueta(e.target.value)}
-          placeholder="Mi BBVA, Efectivo..."
+          placeholder="Mi banco, Efectivo..."
           className="w-full rounded-lg border border-peach px-3 py-2"
         />
       </div>

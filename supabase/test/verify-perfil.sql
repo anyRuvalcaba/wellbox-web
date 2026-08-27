@@ -123,7 +123,7 @@ end $$;
 
 -- ── Un solo método predeterminado por usuario ──────────────────────────────
 insert into payment_methods (user_id, type, label, is_default)
-values ('11111111-1111-1111-1111-111111111111', 'transfer', 'Mi BBVA', true);
+values ('11111111-1111-1111-1111-111111111111', 'transfer', 'Mi banco', true);
 
 do $$
 declare
@@ -152,7 +152,7 @@ declare
   etiqueta text;
 begin
   select id into tarjeta_de_ana from payment_methods
-    where user_id = '11111111-1111-1111-1111-111111111111' and label = 'Mi BBVA';
+    where user_id = '11111111-1111-1111-1111-111111111111' and label = 'Mi banco';
 
   perform set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222"}', true);
   execute 'set local role authenticated';
@@ -175,7 +175,7 @@ begin
   if not sigue_existiendo then
     raise exception 'CA-8 FALLA: Beto borró la tarjeta de Ana';
   end if;
-  if etiqueta <> 'Mi BBVA' then
+  if etiqueta <> 'Mi banco' then
     raise exception 'CA-8 FALLA: Beto modificó la tarjeta de Ana';
   end if;
   raise notice 'CA-8 OK — nadie lee, modifica ni borra los métodos de pago de otra persona';
@@ -224,7 +224,7 @@ declare
   efectivo uuid;
 begin
   select id into tarjeta from payment_methods
-    where user_id = '11111111-1111-1111-1111-111111111111' and label = 'Mi BBVA';
+    where user_id = '11111111-1111-1111-1111-111111111111' and label = 'Mi banco';
 
   insert into payment_methods (user_id, type, label)
   values ('11111111-1111-1111-1111-111111111111', 'cash', 'Efectivo')
