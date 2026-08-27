@@ -6,6 +6,7 @@ import { esFalloDeConexion } from "@/lib/db-error";
 import { formatMXN, formatWeekRangeLabel } from "@/lib/format";
 import { nextUpcomingCutoff } from "@/lib/cutoff";
 import EstadoSinConexion from "./EstadoSinConexion";
+import HeroCarousel from "./HeroCarousel";
 import { CartProvider } from "./pedido/cart-context";
 import CartIcon from "./pedido/CartIcon";
 import AccountMenu from "./pedido/AccountMenu";
@@ -20,10 +21,39 @@ const CTA_PRIMARY =
 const CTA_SECONDARY =
   "inline-flex items-center justify-center bg-white border border-rust/40 text-rust font-semibold rounded-full px-5 py-2.5 hover:bg-rust/10 transition-colors disabled:opacity-50";
 
-// Todavía no hay fotografía de platillos limpia (ni en el editor de menú ni en
-// ningún otro lado) — solo gráficos de "menú semanal" con precios ya impresos, que no
-// sirven aquí. Mientras Any pasa fotos reales, estos espacios quedan marcados en vez de
-// usar esos gráficos o fotos de stock genéricas.
+const F = "/marketing/platillos";
+
+// Las que rotan en el banner: las más apetitosas, mezclando vertical y horizontal para
+// que el encuadre funcione igual en celular que en pantalla ancha.
+const FOTOS_HERO = [
+  { src: `${F}/toast-aguacate-huevo-tocino.jpg`, alt: "Toast de aguacate con huevo estrellado y tocino" },
+  { src: `${F}/avena-platano-chocolate.jpg`, alt: "Avena con plátano, pecanas, chocolate y crema de almendra" },
+  { src: `${F}/tiramisu-avena.jpg`, alt: "Tiramisú de avena con crema y chocolate" },
+  { src: `${F}/waffles-fresa-maple.jpg`, alt: "Waffles de avena con fresa, plátano y miel de maple" },
+  { src: `${F}/croissant-salmon.jpg`, alt: "Croissant de salmón ahumado con aguacate y alcaparras" },
+];
+
+// La galería de "cambia cada semana": variedad deliberada —dulce y salado, pan y bowl—
+// para que se vea que el menú no se repite. El orden importa: la primera ocupa dos
+// filas y la última dos columnas, así que van la más vertical y la más ancha.
+const FOTOS_GALERIA = [
+  { src: `${F}/waffles-chispas-platano.jpg`, alt: "Waffles con chispas de chocolate y plátano" },
+  { src: `${F}/toast-champinones-tocino.jpg`, alt: "Toast de champiñones, tocino y ricotta" },
+  { src: `${F}/waffles-chocolate-fresas.jpg`, alt: "Waffles de chocolate con fresas y yogurt" },
+  { src: `${F}/crepas-espinaca-pollo.jpg`, alt: "Crepas de espinaca rellenas de pollo con aguacate" },
+  { src: `${F}/sandwich-pollo-pesto.jpg`, alt: "Sandwich de pollo al pesto con jitomate deshidratado" },
+  { src: `${F}/croissant-frances-blueberries.jpg`, alt: "Croissant francés con blueberries y crema" },
+];
+
+const FOTO_NOSOTROS = {
+  src: `${F}/avena-berries-pecanas.jpg`,
+  alt: "Avena con blueberries, fresas y pecanas sobre una mesa de madera",
+};
+
+// Las tarjetas del menú muestran la foto del platillo tal como está en la base
+// (dishes.photo_url), que se sube desde el editor de menú. Mientras un platillo no
+// tenga la suya, se marca en vez de poner una foto de otro platillo: enseñar unos
+// waffles donde va un omelette es peor que no enseñar nada.
 function FotoPendiente({ className = "" }: { className?: string }) {
   return (
     <div
@@ -180,7 +210,7 @@ export default async function HomePage() {
         {/* Hero */}
         <section className="grid md:grid-cols-2 items-stretch min-h-[560px] md:min-h-[640px]">
           <div className="order-2 md:order-2 relative min-h-[320px]">
-            <FotoPendiente className="absolute inset-0" />
+            <HeroCarousel photos={FOTOS_HERO} />
           </div>
           <div className="order-1 md:order-1 flex flex-col items-center justify-center text-center gap-5 px-6 sm:px-10 py-10 sm:py-16">
             <Image
@@ -309,7 +339,13 @@ export default async function HomePage() {
               </p>
             </div>
             <div className="relative h-64 sm:h-80 rounded-2xl overflow-hidden">
-              <FotoPendiente className="absolute inset-0" />
+              <Image
+                src={FOTO_NOSOTROS.src}
+                alt={FOTO_NOSOTROS.alt}
+                fill
+                sizes="(min-width: 768px) 45vw, 100vw"
+                className="object-cover"
+              />
             </div>
           </div>
         </section>
@@ -381,13 +417,13 @@ export default async function HomePage() {
               className="grid gap-3 sm:gap-4"
               style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gridAutoRows: "clamp(140px, 17vw, 200px)" }}
             >
-              {Array.from({ length: 6 }, (_, i) => (
+              {FOTOS_GALERIA.map((foto, i) => (
                 <div
-                  key={i}
+                  key={foto.src}
                   className="relative rounded-2xl overflow-hidden"
                   style={i === 0 ? { gridRow: "span 2" } : i === 5 ? { gridColumn: "span 2" } : undefined}
                 >
-                  <FotoPendiente className="absolute inset-0" />
+                  <Image src={foto.src} alt={foto.alt} fill sizes="(min-width: 640px) 320px, 50vw" className="object-cover" />
                 </div>
               ))}
             </div>
