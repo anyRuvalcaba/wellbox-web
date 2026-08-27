@@ -179,7 +179,10 @@ export default function PagoForm({
               value={PAGO_CON_TARJETA}
               checked={esTarjeta}
               disabled={pagoTarjeta !== null}
-              onChange={() => setMetodoId(PAGO_CON_TARJETA)}
+              onChange={() => {
+                setMetodoId(PAGO_CON_TARJETA);
+                setAgregando(false);
+              }}
             />
             <span>
               <span className="font-semibold block">Tarjeta de crédito o débito</span>

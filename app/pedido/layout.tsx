@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CartProvider } from "./cart-context";
 import { getSessionProfile } from "@/lib/auth";
 import AccountMenu from "./AccountMenu";
+import CartIcon from "./CartIcon";
 
 export default async function PedidoLayout({ children }: { children: React.ReactNode }) {
   // getSessionProfile y no requireUser: ver el menú no exige cuenta. El candado está
@@ -13,10 +14,11 @@ export default async function PedidoLayout({ children }: { children: React.React
     <CartProvider nombreCuenta={perfil?.fullName ?? ""} telefonoCuenta={perfil?.phone ?? ""}>
       <div className="min-h-screen flex flex-col">
         <header className="bg-cream border-b border-peach px-4 py-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-          <div />
-          <Link href="/pedido" className="flex items-center gap-2 justify-self-center">
-            <Image src="/logo-wellbox.png" alt="WellBox" width={40} height={40} className="rounded-full" />
-            <span className="font-display text-2xl text-olive-dark">wellBOX</span>
+          <div className="justify-self-start">
+            <CartIcon />
+          </div>
+          <Link href="/" className="justify-self-center">
+            <Image src="/logo-wellbox.png" alt="WellBox" width={96} height={96} className="h-16 w-16" />
           </Link>
           <div className="justify-self-end">
             <AccountMenu email={perfil?.email ?? null} esAdmin={perfil?.role === "admin"} />

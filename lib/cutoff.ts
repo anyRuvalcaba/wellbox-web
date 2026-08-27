@@ -1,7 +1,7 @@
-// Order cutoff: 11pm the day before delivery, America/Mexico_City (UTC-6, no DST).
-// 23:00 local on (dayDate - 1) is always 05:00 UTC on dayDate.
+// Order cutoff: 6pm the day before delivery, America/Mexico_City (UTC-6, no DST).
+// 18:00 local on (dayDate - 1) is always 00:00 UTC on dayDate.
 export function getCutoff(dayDate: string): Date {
-  return new Date(`${dayDate}T05:00:00.000Z`);
+  return new Date(`${dayDate}T00:00:00.000Z`);
 }
 
 export function isOrderable(dayDate: string, now: Date = new Date()): boolean {

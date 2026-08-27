@@ -6,7 +6,7 @@
 -- sin pagar acumulándose.
 --
 -- No se implementa "retomar pedido" porque no aplica a este negocio: los pedidos caducan
--- con el cierre de las 11pm, el menú cambia cada semana, y el importe del cobro queda
+-- con el cierre de las 6pm, el menú cambia cada semana, y el importe del cobro queda
 -- congelado desde que se crea. Lo que sí aplica es que no se acumulen.
 --
 -- 'cancelled' distingue un pedido que la clienta abandonó de uno que falló al cobrar.

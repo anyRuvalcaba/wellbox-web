@@ -195,7 +195,7 @@ no?"
 Retomar tiene sentido con un catálogo permanente: el producto sigue existiendo, al mismo
 precio, la semana que viene. En WellBox no:
 
-- Los pedidos caducan solos con el cierre de las 11pm del día anterior.
+- Los pedidos caducan solos con el cierre de las 6pm del día anterior.
 - El menú cambia cada semana, así que un pedido de hace días apunta a platillos que ya no
   están publicados.
 - El importe del cobro queda congelado al crearlo; retomarlo con un carrito distinto
@@ -445,7 +445,7 @@ la simulación.
 ser todo `npm test`?"
 
 `npm test` corre Vitest: 43 pruebas, sin ninguna dependencia externa, en 2 segundos.
-Cubre las funciones puras de `lib/` (el corte de las 11pm, el formateo de moneda, el
+Cubre las funciones puras de `lib/` (el corte de las 6pm, el formateo de moneda, el
 redondeo a centavos) y un componente de React. `npm run db:verify` corre 28
 verificaciones en SQL contra un Postgres local real, incluida la prueba de concurrencia
 con dos conexiones compitiendo por la última unidad de stock.
@@ -621,6 +621,24 @@ prueba.
 **Lección, y es la más transferible:** una prueba que compara el código contra sí mismo
 no verifica nada. Hay que anclarla a algo independiente.
 
+### El cierre real era a las 6pm, y el código decía 11pm
+
+`lib/cutoff.ts` llevaba fases enteras con el corte de pedidos a las 11pm — con su propio
+comentario explicando el porqué, y con pruebas verdes desde T-005. Nadie lo cuestionó
+porque nunca había un lugar en la app que dijera la hora en texto: solo un contador
+("cierra en 3h 12m"), nunca "las 11pm" escrito.
+
+Se detectó al construir la landing (T-016): el mockup del diseño decía "6pm", y al
+comparar contra el código no coincidían. Any confirmó que 6pm es el horario real del
+negocio — el código llevaba **5 horas de más** aceptando pedidos que debían estar
+cerrados, sin que ninguna prueba lo hubiera atrapado, porque las pruebas verificaban que
+el código hiciera lo que el código decía que hacía, no lo que el negocio necesitaba.
+
+**Lección:** una prueba en verde certifica que el código es consistente consigo mismo,
+no que el número que codificaste sea el correcto. Ese segundo tipo de error solo lo
+atrapa algo externo al código — en este caso, comparar contra una pieza de contenido
+real que nadie había puesto junto al código antes.
+
 ---
 
 ## 10. Por qué las pruebas corren en Postgres local
@@ -696,3 +714,249 @@ detectar tres huecos de autorización, y una suite que sí te avisa.
   El proyecto del curso tampoco cobra nada (su `createOrder` solo guarda una referencia
   al método), así que la brecha es la misma; la diferencia es que aquí está identificada,
   dicha al usuario y registrada, en vez de quedar implícita.
+
+---
+
+## 14. Recuperar contraseña, y cómo se asciende al primer admin
+
+Estos dos huecos salieron probando la app como usuaria real, no leyendo el código: al
+querer entrar a mi propia cuenta de administradora sin recordar la contraseña, no había
+ni cómo recuperarla ni cómo ascender otra cuenta sin depender de esa contraseña perdida.
+
+**Ascender a admin no necesita contraseña de nadie.** `role` vive en `profiles` y está
+protegido por el trigger `protect_role()` (ver punto 3): un `update` con el token de la
+propia usuaria no puede tocarlo. Pero el SQL Editor de Supabase corre sin `auth.uid()` —
+es contexto de servidor — así que ahí sí se puede:
+
+```sql
+update profiles set role = 'admin' where email = 'correo@ejemplo.com';
+```
+
+No hace falta tocar código ni saber la contraseña de la cuenta: solo acceso al dashboard
+del proyecto, que ya requiere ser dueña del proyecto. Documentado en el README desde
+T-001; el resto de admins se agregan después desde `/admin/usuarios` sin volver al SQL
+Editor.
+
+**Recuperar contraseña sí faltaba.** Supabase permite pedir un correo de recuperación
+desde su propio dashboard, pero el enlace que manda necesita una página en la app que lo
+reciba (`redirectTo`); sin ella, cae al Site URL — la página de inicio — y ahí se pierde.
+
+La solución no fue un endpoint propio: es el flujo estándar de Supabase con el template
+de correo por default.
+
+1. `/recuperar-contrasena` pide el correo y llama
+   `supabase.auth.resetPasswordForEmail(email, { redirectTo: ".../restablecer-contrasena" })`.
+   No revisa si la cuenta existe ni lo distingue en el mensaje — Supabase responde igual
+   en ambos casos, mismo criterio que el error genérico de login (punto 5 de por qué no
+   filtrar información a quien no debe tenerla).
+2. El correo trae un enlace de Supabase que verifica el token y redirige a
+   `/restablecer-contrasena` con la sesión de recuperación en el fragmento de la URL
+   (`#access_token=...`). El cliente de `@supabase/ssr` la detecta solo al cargar; la
+   página escucha `onAuthStateChange` en vez de leer la sesión una sola vez, porque esa
+   detección es asíncrona.
+3. Con sesión de recuperación activa, `supabase.auth.updateUser({ password })` cambia la
+   contraseña — ya no hace falta la vieja, es lo que "recuperar" significa.
+
+Requiere un paso fuera del código: agregar
+`https://wellbox-web.vercel.app/restablecer-contrasena` (y su equivalente de
+`localhost` para desarrollo) a Authentication → URL Configuration → Redirect URLs en el
+dashboard de Supabase. Sin eso, Supabase rechaza el `redirectTo` por no estar en la
+lista blanca y vuelve a caer en el Site URL — exactamente el bug original.
+
+---
+
+## 15. "¿Por qué TypeScript y Next.js si el curso fue de JavaScript?"
+
+> Esta es la pregunta que más miedo da, y la que tiene mejor respuesta. Se contesta con
+> el código del propio proyecto de clase, no con opiniones.
+
+### Primero, el dato que desarma la premisa
+
+El proyecto de referencia del curso (`integracion2026`) **no es HTML/CSS/JS plano**. Su
+front-end es:
+
+| | Proyecto del curso | WellBox |
+|---|---|---|
+| Archivos de UI | **50 `.jsx`** (0 `.html` en `src/`) | `.tsx` |
+| Librería de UI | **React 19** | React 19 |
+| Ruteo | `react-router-dom` 7 | Ruteo por archivos de Next.js |
+| Llamadas HTTP | `axios` | `fetch` + cliente de Supabase |
+| Estado global | `createContext` + `useContext` | `createContext` + `useContext` |
+| Pruebas | Vitest + Testing Library | Vitest + Testing Library |
+
+React, componentes, hooks, contexto y JSX **son el curso**. No son un desvío del curso.
+
+### Segundo: el login de los dos es el mismo React
+
+`ecommerce-app/src/components/LoginForm/LoginForm.jsx` (curso) y
+`app/(auth)/login/LoginForm.tsx` (WellBox) usan exactamente los mismos conceptos:
+
+- `useState` para email, password, `loading` y error
+- `onSubmit` asíncrono que empieza con `e.preventDefault()`
+- inputs controlados (`value={email} onChange={(e) => setEmail(e.target.value)}`)
+- `try/catch` → mensaje de error en pantalla → redirección al terminar
+
+Lo único que cambia es la línea del medio: el curso llama `await login({email, password})`
+(que va por axios a Express y regresa un JWT) y WellBox llama
+`await supabase.auth.signInWithPassword({email, password})`. **Un renglón.** Todo lo que
+lo rodea es el mismo JavaScript y el mismo React.
+
+### Tercero: lo que SÍ es distinto (decirlo antes de que lo pregunten)
+
+Son cuatro cosas, y hay que poder explicar cada una:
+
+1. **TypeScript en vez de JavaScript.** TypeScript *es* JavaScript con anotaciones de
+   tipo; se compila a JavaScript y es lo que corre en producción. Ningún concepto de JS
+   se pierde: el proyecto usa `map`/`filter`/`reduce`, destructuring, spread, `async`/
+   `await`, promesas, `Map`, `Set`, closures y módulos ES. La razón de usarlo está en la
+   sección 2.
+2. **Next.js App Router en vez de Create React App + Express.** En el curso el front y el
+   back son dos proyectos separados que se hablan por HTTP (axios → Express). Aquí son
+   uno solo: los Server Components consultan la base directamente en el servidor, y donde
+   sí hace falta un endpoint HTTP existe (`app/api/orders/route.ts`,
+   `app/api/stripe/webhook/route.ts`). Es la misma separación cliente/servidor, con menos
+   piezas.
+3. **Postgres en vez de MongoDB.** Modelos de Mongoose → migraciones SQL versionadas en
+   `supabase/migrations/`. Se gana integridad referencial y transacciones reales
+   (secciones 3 y 11).
+4. **Componentes de servidor.** Concepto que no está en el curso. La regla corta: si el
+   componente solo muestra datos, corre en el servidor y nunca viaja al navegador; si
+   necesita `useState` o `onClick`, lleva `"use client"`. Ese es el criterio que se aplicó
+   en todo el proyecto.
+
+### Cuarto: dónde la diferencia juega a favor
+
+No es solo "distinto pero equivalente". El código de clase tiene tres huecos que WellBox
+cierra, y se pueden mostrar lado a lado:
+
+**a) El pedido del curso confía en el cliente para la identidad y para el precio.**
+
+```js
+// integracion2026/ecommerce-api/src/controllers/orderController.js:36
+const { user, products, address, paymentMethod, totalPrice, shippingCost } = req.body;
+const newOrder = await Order.create({ user, products, ... totalPrice, ... });
+```
+
+`user` y `totalPrice` salen de `req.body`. Con Postman se puede crear un pedido a nombre
+de otra persona, con el precio que uno quiera. En WellBox:
+
+```ts
+// app/api/orders/route.ts
+const { data: { user } } = await supabase.auth.getUser();
+// La identidad sale de la sesión, nunca del body.
+```
+
+y el total se recalcula en el servidor contra los precios de la base (sección 5).
+
+**b) El login del curso revela qué correos están registrados.**
+
+```js
+// authController.js — dos mensajes distintos
+return res.status(400).json({ message: "User does not exist. You must sign in." });
+return res.status(400).json({ message: "Invalid Credentials" });
+```
+
+El front los traduce a "Usuario no registrado" vs "Email o contraseña incorrectos", así
+que probando correos se puede saber quién tiene cuenta. WellBox devuelve siempre el mismo
+mensaje genérico, a propósito y con el comentario que lo explica.
+
+**c) El token del curso vive en `localStorage` y el rol se lee del token en el cliente.**
+
+`AuthContext.jsx` hace `saveToken(token)` y luego `decodeToken(token)` para sacar
+`role`. Cualquier XSS lee ese token, y el rol que el cliente cree tener sale del propio
+navegador. En WellBox la sesión va en cookie manejada por `@supabase/ssr`, el rol vive en
+la tabla `profiles`, el trigger `protect_role()` impide que el cliente lo cambie, y RLS lo
+verifica en cada consulta (secciones 3 y 4).
+
+### La frase corta, si solo hay tiempo para una
+
+> "El curso es React, Node y pruebas — y eso es exactamente lo que traigo. Cambié tres
+> piezas de infraestructura: TypeScript en vez de JavaScript suelto, Postgres en vez de
+> Mongo, y Next.js en vez de CRA + Express. Puedo explicar cada cambio, y cada uno
+> cerró un hueco concreto que el proyecto de referencia tiene abierto."
+
+---
+
+## 16. La estructura: mismas capas, distintos nombres
+
+> Esta sección está escrita para estudiarse, no solo para consultarse. Si en la defensa
+> preguntan "¿dónde está tu capa de servicios?", la respuesta es señalar un archivo.
+
+### Qué es una "capa", sin tecnicismos
+
+Toda aplicación web tiene que resolver **cinco trabajos**. Siempre los mismos, sin
+importar la tecnología:
+
+| # | El trabajo | Traducido a lo que pasa en WellBox |
+|---|---|---|
+| 1 | Dibujar la pantalla | Mostrar el menú de la semana con sus precios |
+| 2 | Recordar lo que la clienta lleva elegido mientras cambia de pantalla | Que el carrito no se borre al ir de `/pedido` a `/pedido/resumen` |
+| 3 | Pedirle datos al servidor | "Dame el menú publicado", "guarda este pedido" |
+| 4 | Recibir esa petición en el servidor y decidir si se permite | "¿Esta persona tiene sesión? ¿Este día sigue abierto?" |
+| 5 | Guardar los datos de verdad | La tabla `orders` en Postgres |
+
+Una **capa** es cada uno de esos trabajos, con su propio código separado. La razón de
+separarlos es simple: cuando algo falla, sabes en qué capa buscar. Si el precio sale mal,
+es capa 4 o 5, no capa 1.
+
+El curso les puso nombres de carpeta (`components/`, `services/`, `controllers/`). Next.js
+usa otros nombres y otra ubicación. **Los cinco trabajos son los mismos.**
+
+### El mapeo, archivo por archivo
+
+| Capa | Carpeta del curso | Archivo real en WellBox |
+|---|---|---|
+| 1 · Pantalla | `components/` | `app/pedido/MenuBrowser.tsx`, `app/page.tsx`, `app/(auth)/login/LoginForm.tsx` |
+| 2 · Estado compartido | `context/CartContext.jsx` | `app/pedido/cart-context.tsx` |
+| 3 · Hablar con el servidor | `services/apiClient.js`, `services/authService.js` | `lib/supabase/client.ts` (navegador), `lib/supabase/server.ts` (servidor) |
+| 4a · Rutas | `routes/orderRoutes.js` | `app/api/orders/route.ts` — el archivo *es* la ruta |
+| 4b · Controlador | `controllers/orderController.js` | la función `POST()` dentro de ese mismo archivo |
+| 4c · Middleware | `middlewares/authMiddleware.js`, `isAdminMiddleware.js` | `proxy.ts` + `lib/auth.ts` (`requireUser`, `requireAdmin`) |
+| 5 · Modelos / datos | `models/Order.js` (Mongoose) | `supabase/migrations/*.sql` (14 archivos) |
+| 6 · Pruebas | `__tests__/` | `lib/__tests__/` (Vitest) + `supabase/test/` (SQL) |
+
+**Las tres capas de WellBox que el curso no tiene** son un añadido, no una ausencia:
+`lib/cutoff.ts` (la regla de las 6pm), `lib/dinero.ts` (redondeo a centavos) y las
+políticas RLS dentro de las migraciones.
+
+### Las dos diferencias reales, y por qué existen
+
+**a) En el curso, ruta y controlador son dos archivos. Aquí son uno.**
+
+En Express hay que registrar cada ruta a mano:
+
+```js
+// routes/orderRoutes.js — el curso
+router.post("/", authMiddleware, createOrder);
+```
+
+En Next.js la ruta la define **dónde está el archivo**: un archivo en
+`app/api/orders/route.ts` responde en `/api/orders`. No hay que registrarlo. Por eso no
+existe una carpeta `routes/`: la carpeta *es* la ruta.
+
+> **Cómo lo dices:** "La capa de rutas y la de controladores existen las dos; en Next.js
+> viven en el mismo archivo porque el ruteo es por sistema de archivos. `app/api/orders/
+> route.ts` es simultáneamente mi ruta `/api/orders` y mi controlador."
+
+**b) En el curso, los modelos son código. Aquí son SQL versionado.**
+
+`models/Order.js` describe la forma del pedido en JavaScript, y MongoDB acepta lo que le
+manden. Aquí la forma la define y la hace cumplir la base:
+
+```sql
+-- supabase/migrations/0001_init.sql
+create table orders ( … );
+```
+
+Y encima van las políticas RLS, que son la parte que el curso no tiene equivalente.
+
+> **Cómo lo dices:** "Mis modelos son las 14 migraciones SQL. La diferencia es que en
+> Mongoose el modelo es una sugerencia que la aplicación tiene que respetar, y en Postgres
+> es una restricción que la base hace cumplir aunque la aplicación se equivoque."
+
+### La frase para la pregunta de estructura
+
+> "Tengo las mismas capas que vimos en clase: componentes, contexto, servicios, rutas,
+> controladores, middleware, modelos y pruebas. Lo que cambia es dónde viven y cómo se
+> llaman, porque Next.js resuelve el ruteo por sistema de archivos en vez de registrarlo
+> a mano. Te puedo señalar el archivo de cada capa."

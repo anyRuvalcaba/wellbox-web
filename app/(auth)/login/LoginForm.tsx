@@ -80,6 +80,9 @@ export default function LoginForm({ next }: { next: string | null }) {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
+        <Link href="/recuperar-contrasena" className={`${TEXT_LINK} text-xs mt-1 inline-block`}>
+          ¿Olvidaste tu contraseña?
+        </Link>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

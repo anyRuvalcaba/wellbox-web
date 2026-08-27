@@ -54,7 +54,7 @@ export default function MenuBrowser({ menu }: { menu: PublishedMenu }) {
   }, [menu.id]);
 
   // Para decidir qué días siguen abiertos basta la fecha aproximada: los cierres son a
-  // las 11pm, así que un segundo de diferencia no cambia el resultado. Lo que sí no
+  // las 6pm, así que un segundo de diferencia no cambia el resultado. Lo que sí no
   // puede renderizarse en el servidor es el contador al segundo, que es donde estaba el
   // problema de hidratación.
   const ahoraParaCortes = useMemo(
@@ -125,7 +125,7 @@ function DayCard({
       </div>
 
       {!orderable ? (
-        <p className="text-sm text-brown/40">El periodo para pedir este día ya cerró (11pm del día anterior).</p>
+        <p className="text-sm text-brown/40">El periodo para pedir este día ya cerró (6pm del día anterior).</p>
       ) : (
         <div className="flex flex-col gap-3">
           {dishes.map((dish) => (
@@ -304,10 +304,16 @@ function DishOption({
             </div>
             <p className="font-semibold text-rust whitespace-nowrap">{formatMXN(dish.price)}</p>
           </button>
-          {isSelected && (
+          {isSelected ? (
             <button type="button" onClick={handleRemove} className={CHIP_DANGER}>
               Quitar
             </button>
+          ) : (
+            !agotado && (
+              <button type="button" onClick={handleTap} className={CHIP_OLIVE}>
+                Agregar
+              </button>
+            )
           )}
         </div>
         {isSelected && selectedItem && (
