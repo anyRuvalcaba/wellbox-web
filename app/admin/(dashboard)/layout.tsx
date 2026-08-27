@@ -23,8 +23,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <header className="bg-white border-b border-peach px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-y-2 gap-x-4">
         <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
           <Link href="/admin" className="flex items-center gap-2">
-            <Image src="/logo-wellbox.png" alt="WellBox" width={32} height={32} className="rounded-full" />
-            <span className="font-display text-xl text-olive-dark">wellBOX admin</span>
+            <Image src="/logo-wellbox.png" alt="WellBox" width={56} height={56} className="h-14 w-14" />
+            <span className="font-display text-sm text-brown/60">admin</span>
           </Link>
           <nav className="flex gap-3 sm:gap-4 flex-wrap">
             {NAV.map((item) => (
