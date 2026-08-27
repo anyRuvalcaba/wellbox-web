@@ -22,7 +22,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="min-h-screen flex flex-col bg-cream">
       <header className="bg-white border-b border-peach px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-y-2 gap-x-4">
         <div className="flex items-center gap-4 sm:gap-6 flex-wrap">
-          <Link href="/admin" className="flex items-center gap-2">
+          {/* El logo lleva al inicio del sitio en todas las pantallas, también aquí.
+              Para volver a la portada del panel está "Inicio" en la navegación de al
+              lado, así que no se pierde nada. */}
+          <Link href="/" className="flex items-center gap-2">
             <Image src="/logo-wellbox.png" alt="WellBox" width={56} height={56} className="h-14 w-14" />
             <span className="font-display text-sm text-brown/60">admin</span>
           </Link>
