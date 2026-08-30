@@ -221,8 +221,12 @@ export default async function HomePage() {
               className="w-36 sm:w-44 h-auto"
               priority
             />
-            <h1 className="font-display text-4xl sm:text-5xl text-olive-dark leading-tight max-w-[13ch]">
-              Healthy-Clean Dark Kitchen
+            {/* Partido a mano y no por ancho: dejándolo al navegador caía como
+                "Healthy-Clean Dark / Kitchen", que rompe el nombre por donde no. Cada
+                mitad va en su renglón y sin partirse, incluso en pantallas angostas. */}
+            <h1 className="font-display text-4xl sm:text-5xl text-olive-dark leading-tight">
+              <span className="block whitespace-nowrap">Healthy-Clean</span>
+              <span className="block whitespace-nowrap">Dark Kitchen</span>
             </h1>
             <p className="text-brown/75 text-base sm:text-lg max-w-[44ch]">
               Desayunos saludables 100% para llevar, cocinados el mismo día y entregados
